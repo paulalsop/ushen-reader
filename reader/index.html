@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f3ecdc" />
+    <meta name="description" content="《有神》在线阅读器" />
+    <title>有神 · 在线阅读</title>
+    <link rel="stylesheet" href="reader.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <header class="book-header">
+          <div>
+            <p class="eyebrow">山海正典</p>
+            <h1>有神</h1>
+          </div>
+          <button class="icon-button mobile-only" id="closeSidebar" aria-label="关闭目录">×</button>
+        </header>
+
+        <div class="catalog-meta">
+          <span id="chapterCount">读取中…</span>
+          <span id="syncTime"></span>
+        </div>
+        <nav class="chapter-list" id="chapterList" aria-label="章节目录"></nav>
+      </aside>
+
+      <main class="reader">
+        <header class="toolbar">
+          <button class="icon-button" id="openSidebar" aria-label="打开目录">☰</button>
+          <div class="toolbar-title" id="toolbarTitle">有神</div>
+          <div class="toolbar-actions">
+            <button class="text-button" id="fontDown" aria-label="缩小字号">字−</button>
+            <button class="text-button" id="fontUp" aria-label="增大字号">字＋</button>
+            <button class="icon-button" id="themeToggle" aria-label="切换夜间模式">◐</button>
+          </div>
+        </header>
+
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <article class="chapter" id="chapter">
+          <div class="welcome">
+            <p class="eyebrow">山海正典</p>
+            <h2>有神</h2>
+            <p>一个编辑猝死在《山海经》校样上，醒来走进这本书的第一页。</p>
+            <p class="loading" id="loading">正在展开书页……</p>
+          </div>
+        </article>
+
+        <footer class="chapter-nav">
+          <button id="previousChapter">← 上一章</button>
+          <button id="nextChapter">下一章 →</button>
+        </footer>
+      </main>
+    </div>
+    <div class="scrim" id="scrim"></div>
+    <script src="reader.js"></script>
+  </body>
+</html>
