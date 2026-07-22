@@ -40,9 +40,8 @@ def validate(files: list[Path]) -> None:
         print(f"OK {p.name} {cn}")
 
 
-def mark_v01(start: int, end: int, summaries: dict[int, str]) -> None:
-    p = ROOT / "03_structure/cards/V01.md"
-    t = p.read_text(encoding="utf-8")
+def mark_cards(cards: Path, start: int, end: int, summaries: dict[int, str]) -> None:
+    t = cards.read_text(encoding="utf-8")
     parts = re.split(r"(?=^### 第\d{3}章)", t, flags=re.M)
     out = []
     for b in parts:
@@ -53,7 +52,7 @@ def mark_v01(start: int, end: int, summaries: dict[int, str]) -> None:
             out.append(f"### 第{n:03d}章 {title}\n{summaries[n]}\n\n")
         else:
             out.append(b)
-    p.write_text("".join(out), encoding="utf-8")
+    cards.write_text("".join(out), encoding="utf-8")
 
 
 def main() -> None:
@@ -65,6 +64,9 @@ def main() -> None:
     ap.add_argument("--audit", required=True)
     ap.add_argument("--ledger", required=True, help="path to replacement LEDGER.md content file")
     ap.add_argument("--summary", action="append", required=True, help="N:summary")
+    ap.add_argument("--cards", default="03_structure/cards/V01.md")
+    ap.add_argument("--matrix", default="审核日志/BATCH_MATRIX_V01.md")
+    ap.add_argument("--audit-name", default="", help="override audit filename stem, e.g. V02_01")
     args = ap.parse_args()
 
     files = chapter_files(args.start, args.end)
@@ -74,15 +76,16 @@ def main() -> None:
     for item in args.summary:
         n_s, s = item.split(":", 1)
         summaries[int(n_s)] = s
-    mark_v01(args.start, args.end, summaries)
+    mark_cards(ROOT / args.cards, args.start, args.end, summaries)
 
-    matrix = ROOT / "审核日志/BATCH_MATRIX_V01.md"
+    matrix = ROOT / args.matrix
     mt = matrix.read_text(encoding="utf-8")
     if args.matrix_line not in mt:
         raise SystemExit("matrix line not found")
     matrix.write_text(mt.replace(args.matrix_line, args.matrix_line.replace("| pending |", "| done |")), encoding="utf-8")
 
-    (ROOT / f"审核日志/BATCH_{args.batch}_读者体验审计.md").write_text(args.audit + "\n", encoding="utf-8")
+    audit_stem = args.audit_name or f"BATCH_{args.batch}"
+    (ROOT / f"审核日志/{audit_stem}_读者体验审计.md").write_text(args.audit + "\n", encoding="utf-8")
     (ROOT / "06_continuity/LEDGER.md").write_text(Path(args.ledger).read_text(encoding="utf-8"), encoding="utf-8")
 
     subprocess.check_call(["python3", str(ROOT / "build_reader.py")])
