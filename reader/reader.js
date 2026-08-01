@@ -88,7 +88,11 @@ function chapterAudioUrl(chapter = currentChapter(), voiceId = tts.voiceId) {
 }
 
 function chapterHasAudio(chapter = currentChapter(), voiceId = tts.voiceId) {
-  return Boolean(chapterAudioUrl(chapter, voiceId));
+  // Exact match only: a voice whose audio is not generated yet must report
+  // false so its button greys out and selection is blocked, instead of
+  // silently falling back to another voice's file.
+  const audio = chapterAudioMap(chapter);
+  return Boolean(audio[voiceId]);
 }
 
 function chapterHasAnyAudio(chapter = currentChapter()) {
