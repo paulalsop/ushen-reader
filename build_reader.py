@@ -28,8 +28,16 @@ def chapter_title(path: Path) -> str:
 
 def reader_text(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
-    text = re.sub(r"\n---\s*\n\s*【章末自报】.*\Z", "", text, flags=re.DOTALL)
-    return text.rstrip() + "\n"
+    separator = "\n---\n"
+    if text.count(separator) != 1 or text.count("【章末自报】") != 1:
+        raise ValueError(f"{path.name}: expected one final separator and one chapter report")
+    body, report = text.split(separator, 1)
+    if not report.lstrip().startswith("【章末自报】"):
+        raise ValueError(f"{path.name}: separator must be immediately followed by chapter report")
+    published = body.rstrip() + "\n"
+    if "【章末自报】" in published or "\n---\n" in published:
+        raise ValueError(f"{path.name}: production metadata leaked into reader text")
+    return published
 
 
 def collect_chapters() -> list[dict[str, object]]:
