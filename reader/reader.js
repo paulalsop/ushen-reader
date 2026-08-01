@@ -274,6 +274,7 @@ function updateTtsPlayButton() {
     elements.ttsPlay.dataset.state = "playing";
     elements.ttsPlay.setAttribute("aria-label", "暂停");
   }
+  syncFabState();
 }
 
 function resetSeekUi() {
@@ -609,13 +610,22 @@ function readyStatus(chapter = currentChapter()) {
   return "待生成 · 可先浏览器朗读";
 }
 
+function syncFabState() {
+  document.body.classList.toggle("tts-playing", tts.playing && !tts.paused);
+  elements.ttsToggle.setAttribute("aria-pressed", tts.open ? "true" : "false");
+  elements.ttsToggle.setAttribute("aria-label", tts.open ? "收起听书" : "打开听书");
+  const label = elements.ttsToggle.querySelector(".tts-fab-label");
+  if (label) label.textContent = tts.playing && !tts.paused ? "播放中" : "听书";
+}
+
 function setTtsBarOpen(open) {
   tts.open = open;
   elements.ttsBar.hidden = !open;
-  elements.ttsToggle.setAttribute("aria-pressed", open ? "true" : "false");
   document.body.classList.toggle("tts-open", open);
+  syncFabState();
   if (!open) {
     stopTts({ keepBar: false });
+    syncFabState();
     return;
   }
   renderVoiceButtons();
@@ -691,7 +701,11 @@ function initializeTts() {
   elements.ttsToggle.addEventListener("click", () => {
     setTtsBarOpen(!tts.open);
   });
+  document.querySelector("#ttsClose")?.addEventListener("click", () => {
+    setTtsBarOpen(false);
+  });
   elements.ttsPlay.addEventListener("click", toggleTtsPlayback);
+  syncFabState();
   elements.ttsRateToggle.addEventListener("click", (event) => {
     event.stopPropagation();
     setRateMenuOpen(elements.ttsRateMenu.hidden);
