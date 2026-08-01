@@ -56,6 +56,7 @@ const elements = {
   ttsSeek: document.querySelector("#ttsSeek"),
   ttsCurrent: document.querySelector("#ttsCurrent"),
   ttsDuration: document.querySelector("#ttsDuration"),
+  ttsRestart: document.querySelector("#ttsRestart"),
   audio: document.querySelector("#ttsAudio"),
 };
 
@@ -334,7 +335,39 @@ function stopAudio() {
   elements.audio.load();
 }
 
+function positionStorageKey(chapter = currentChapter(), voiceId = tts.voiceId) {
+  if (!chapter) return "";
+  return `ushen-tts-pos-${chapter.number}-${voiceId}`;
+}
+
+function savePlaybackPosition() {
+  const chapter = currentChapter();
+  const key = positionStorageKey(chapter);
+  if (!key || tts.mode !== "audio") return;
+  const current = elements.audio.currentTime;
+  const duration = elements.audio.duration;
+  if (!Number.isFinite(current) || !Number.isFinite(duration) || duration <= 0) return;
+  if (current < 3 || current >= duration - 8) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, String(current));
+}
+
+function loadPlaybackPosition(chapter = currentChapter(), voiceId = tts.voiceId) {
+  const key = positionStorageKey(chapter, voiceId);
+  if (!key) return 0;
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) && value > 3 ? value : 0;
+}
+
+function clearPlaybackPosition(chapter = currentChapter(), voiceId = tts.voiceId) {
+  const key = positionStorageKey(chapter, voiceId);
+  if (key) localStorage.removeItem(key);
+}
+
 function stopTts({ keepBar = true, status = "已停止" } = {}) {
+  savePlaybackPosition();
   tts.playing = false;
   tts.paused = false;
   tts.mode = "none";
@@ -368,12 +401,14 @@ function updateAudioStatus() {
 }
 
 function handleChapterEnded() {
+  clearPlaybackPosition();
   clearTtsHighlight();
   tts.playing = false;
   tts.paused = false;
   tts.mode = "none";
   tts.paragraphIndex = -1;
   updateTtsPlayButton();
+  resetSeekUi();
 
   if (tts.autoNext && state.currentIndex < state.chapters.length - 1) {
     setTtsStatus("进入下一章…");
@@ -466,7 +501,7 @@ function speakFrom(index) {
   speechSynthesis.speak(utterance);
 }
 
-async function startAudioPlayback(chapter, { resumeRatio = 0 } = {}) {
+async function startAudioPlayback(chapter, { resumeRatio = null, resumeTime = null, fromStart = false } = {}) {
   const audioUrl = chapterAudioUrl(chapter, tts.voiceId);
   if (!audioUrl) {
     startSpeechPlayback();
@@ -477,9 +512,20 @@ async function startAudioPlayback(chapter, { resumeRatio = 0 } = {}) {
   elements.audio.src = audioUrl;
   elements.audio.playbackRate = tts.rate;
 
+  let targetTime = resumeTime;
+  if (!fromStart && targetTime == null && resumeRatio == null) {
+    targetTime = loadPlaybackPosition(chapter, tts.voiceId);
+  }
+
   const seekWhenReady = () => {
-    if (!resumeRatio || !Number.isFinite(elements.audio.duration) || elements.audio.duration <= 0) return;
-    elements.audio.currentTime = elements.audio.duration * resumeRatio;
+    const duration = elements.audio.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    let time = targetTime;
+    if (resumeRatio != null) time = duration * resumeRatio;
+    if (!Number.isFinite(time) || time <= 0) return;
+    elements.audio.currentTime = Math.min(Math.max(0, time), Math.max(0, duration - 0.25));
+    updateSeekUi();
+    syncHighlightFromAudio();
   };
   elements.audio.addEventListener("loadedmetadata", seekWhenReady, { once: true });
 
@@ -496,6 +542,7 @@ async function startAudioPlayback(chapter, { resumeRatio = 0 } = {}) {
   updateTtsPlayButton();
   updateAudioStatus();
   renderVoiceButtons();
+  if (targetTime > 0 || resumeRatio) setTtsStatus(`继续收听 · ${voiceLabel()}`);
 }
 
 async function selectVoice(voiceId) {
@@ -548,14 +595,14 @@ function startSpeechPlayback() {
   speakFrom(0);
 }
 
-function startTts() {
+function startTts({ fromStart = false } = {}) {
   const chapter = currentChapter();
   if (!chapter) {
     setTtsStatus("请先打开章节");
     return;
   }
   if (chapterHasAudio(chapter)) {
-    startAudioPlayback(chapter);
+    startAudioPlayback(chapter, { fromStart });
     return;
   }
   startSpeechPlayback();
@@ -566,9 +613,10 @@ function pauseTts() {
 
   if (tts.mode === "audio") {
     elements.audio.pause();
+    savePlaybackPosition();
     tts.paused = true;
     updateTtsPlayButton();
-    setTtsStatus("已暂停");
+    setTtsStatus(`已暂停 · ${voiceLabel()}`);
     return;
   }
 
@@ -605,7 +653,11 @@ function toggleTtsPlayback() {
 }
 
 function readyStatus(chapter = currentChapter()) {
-  if (chapterHasAudio(chapter)) return `可听 · ${voiceLabel()}`;
+  if (chapterHasAudio(chapter)) {
+    const saved = loadPlaybackPosition(chapter);
+    if (saved > 0) return `可继续 · ${voiceLabel()} · ${formatClock(saved)}`;
+    return `可听 · ${voiceLabel()}`;
+  }
   if (chapterHasAnyAudio(chapter)) return `${voiceLabel()}生成中 · 可换音色或浏览器朗读`;
   return "待生成 · 可先浏览器朗读";
 }
@@ -705,6 +757,19 @@ function initializeTts() {
     setTtsBarOpen(false);
   });
   elements.ttsPlay.addEventListener("click", toggleTtsPlayback);
+  elements.ttsRestart?.addEventListener("click", () => {
+    const chapter = currentChapter();
+    if (!chapter) return;
+    clearPlaybackPosition(chapter);
+    if (tts.mode === "audio" && tts.playing) {
+      elements.audio.currentTime = 0;
+      if (tts.paused) resumeTts();
+      updateAudioStatus();
+      setTtsStatus(`从头收听 · ${voiceLabel()}`);
+      return;
+    }
+    startTts({ fromStart: true });
+  });
   syncFabState();
   elements.ttsRateToggle.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -723,7 +788,10 @@ function initializeTts() {
     localStorage.setItem("ushen-tts-auto-next", tts.autoNext ? "1" : "0");
   });
 
-  elements.audio.addEventListener("timeupdate", updateAudioStatus);
+  elements.audio.addEventListener("timeupdate", () => {
+    updateAudioStatus();
+    if (tts.playing && !tts.paused && tts.mode === "audio") savePlaybackPosition();
+  });
   elements.audio.addEventListener("loadedmetadata", updateSeekUi);
   elements.audio.addEventListener("ended", () => {
     if (tts.mode !== "audio") return;
@@ -734,23 +802,56 @@ function initializeTts() {
     stopTts({ status: "音频加载失败" });
   });
 
-  elements.ttsSeek.addEventListener("pointerdown", () => {
-    tts.seeking = true;
-  });
-  elements.ttsSeek.addEventListener("input", () => {
+  const previewSeek = () => {
     const duration = elements.audio.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
+    if (!Number.isFinite(duration) || duration <= 0) return 0;
     const ratio = Number(elements.ttsSeek.value) / 1000;
-    elements.ttsCurrent.textContent = formatClock(duration * ratio);
-  });
+    const time = duration * ratio;
+    elements.ttsCurrent.textContent = formatClock(time);
+    return time;
+  };
+
   const commitSeek = () => {
     const duration = elements.audio.duration;
     tts.seeking = false;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    elements.audio.currentTime = (Number(elements.ttsSeek.value) / 1000) * duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      setTtsStatus("音频加载中，稍后再拖进度");
+      return;
+    }
+    const time = previewSeek();
+    try {
+      elements.audio.currentTime = time;
+    } catch (error) {
+      console.warn(error);
+    }
+    savePlaybackPosition();
+    syncHighlightFromAudio();
     updateAudioStatus();
+    if (tts.playing && tts.paused) setTtsStatus(`已定位到 ${formatClock(time)}`);
   };
+
+  elements.ttsSeek.addEventListener("pointerdown", () => {
+    tts.seeking = true;
+  });
+  elements.ttsSeek.addEventListener("touchstart", () => {
+    tts.seeking = true;
+  }, { passive: true });
+  elements.ttsSeek.addEventListener("input", () => {
+    tts.seeking = true;
+    const time = previewSeek();
+    const duration = elements.audio.duration;
+    if (Number.isFinite(duration) && duration > 0) {
+      // Live scrub so mobile users can drag to the exact spot.
+      try {
+        elements.audio.currentTime = time;
+      } catch (_) {
+        /* ignore transient seek errors while metadata settles */
+      }
+      syncHighlightFromAudio();
+    }
+  });
   elements.ttsSeek.addEventListener("pointerup", commitSeek);
+  elements.ttsSeek.addEventListener("touchend", commitSeek, { passive: true });
   elements.ttsSeek.addEventListener("change", commitSeek);
 
   if (tts.speechSupported) {

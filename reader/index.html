@@ -77,6 +77,7 @@
               <input type="range" id="ttsSeek" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
               <div class="tts-times">
                 <span id="ttsCurrent">0:00</span>
+                <button type="button" class="tts-restart" id="ttsRestart" aria-label="从头播放">从头</button>
                 <span id="ttsDuration">0:00</span>
               </div>
             </div>
@@ -100,7 +101,7 @@
               <span class="tts-status" id="ttsStatus">准备听书</span>
             </div>
           </div>
-          <audio id="ttsAudio" preload="none" playsinline></audio>
+          <audio id="ttsAudio" preload="metadata" playsinline></audio>
         </div>
       </main>
     </div>
