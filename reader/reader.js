@@ -231,7 +231,7 @@ function clearTtsHighlight() {
   tts.syncIndex = -1;
 }
 
-function highlightSyncIndex(index, { scroll = true } = {}) {
+function highlightSyncIndex(index, { scroll = true, behavior = "smooth" } = {}) {
   if (index < 0 || index >= tts.syncUnits.length) return;
   if (index === tts.syncIndex) return;
 
@@ -244,7 +244,7 @@ function highlightSyncIndex(index, { scroll = true } = {}) {
 
   tts.syncIndex = index;
   if (scroll) {
-    tts.syncUnits[index].el.scrollIntoView({ behavior: "smooth", block: "center" });
+    tts.syncUnits[index].el.scrollIntoView({ behavior, block: "center" });
   }
 }
 
@@ -390,6 +390,7 @@ function updateTtsPlayButton() {
 
 function resetSeekUi() {
   elements.ttsSeek.value = "0";
+  elements.ttsSeek.style.setProperty("--buffered", "0%");
   elements.ttsCurrent.textContent = "0:00";
   elements.ttsDuration.textContent = "0:00";
 }
@@ -402,6 +403,41 @@ function updateSeekUi() {
   elements.ttsDuration.textContent = formatClock(duration);
   if (Number.isFinite(duration) && duration > 0) {
     elements.ttsSeek.value = String(Math.round((current / duration) * 1000));
+  }
+}
+
+function audioBufferedRatio() {
+  const audio = elements.audio;
+  const duration = audio.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  try {
+    const { buffered } = audio;
+    if (!buffered.length) return 0;
+    const now = audio.currentTime;
+    for (let i = 0; i < buffered.length; i += 1) {
+      if (buffered.start(i) <= now && now <= buffered.end(i)) {
+        return Math.min(1, buffered.end(i) / duration);
+      }
+    }
+    return Math.min(1, buffered.end(buffered.length - 1) / duration);
+  } catch (_) {
+    return 0;
+  }
+}
+
+function updateBufferUi() {
+  const ratio = audioBufferedRatio();
+  elements.ttsSeek.style.setProperty("--buffered", `${(ratio * 100).toFixed(1)}%`);
+}
+
+function updateLoadingStatus() {
+  const audio = elements.audio;
+  if (tts.playing || !audio.dataset.src) return;
+  const loading = audio.networkState === 2 && audio.readyState < 3; // NETWORK_LOADING, no playable data yet
+  if (loading) {
+    setTtsStatus(`音频加载中 · ${Math.round(audioBufferedRatio() * 100)}%`);
+  } else if (elements.ttsStatus.textContent.startsWith("音频加载中")) {
+    setTtsStatus(readyStatus());
   }
 }
 
@@ -875,19 +911,21 @@ function setTtsBarOpen(open) {
   document.body.classList.toggle("tts-open", open);
   syncFabState();
   if (!open) {
+    // Collapsing the bar must not interrupt playback: keep audio/speech and
+    // highlight running; the FAB keeps showing the playing state.
     savePlaybackPosition();
-    elements.audio.pause();
-    tts.playing = false;
-    tts.paused = false;
-    tts.mode = "none";
-    clearTtsHighlight();
-    updateTtsPlayButton();
-    syncFabState();
     return;
   }
   prepareChapterAudio();
   renderVoiceButtons();
   waitForAudioDuration().then(() => {
+    if (tts.mode === "audio" && tts.playing) {
+      // Playback continued while the bar was collapsed; don't rewind to a
+      // stale saved position, just refresh the UI.
+      updateSeekUi();
+      syncHighlightFromAudio({ force: true });
+      return;
+    }
     const saved = loadPlaybackPosition();
     if (saved > 0) seekAudioTo(saved);
     else updateSeekUi();
@@ -1006,6 +1044,20 @@ function initializeTts() {
     if (tts.playing && !tts.paused && tts.mode === "audio") savePlaybackPosition();
   });
   elements.audio.addEventListener("loadedmetadata", updateSeekUi);
+  elements.audio.addEventListener("loadstart", () => {
+    updateBufferUi();
+    updateLoadingStatus();
+  });
+  elements.audio.addEventListener("progress", () => {
+    updateBufferUi();
+    updateLoadingStatus();
+  });
+  elements.audio.addEventListener("canplay", () => {
+    updateBufferUi();
+    updateLoadingStatus();
+  });
+  elements.audio.addEventListener("suspend", updateLoadingStatus);
+  elements.audio.addEventListener("stalled", updateLoadingStatus);
   elements.audio.addEventListener("ended", () => {
     if (tts.mode !== "audio") return;
     handleChapterEnded();
@@ -1052,7 +1104,11 @@ function initializeTts() {
         return;
       }
       savePlaybackPosition();
-      updateAudioStatus();
+      // Seek committed: release the scrub lock so the UI refreshes and the
+      // page smooth-scrolls to the landed sentence.
+      tts.seeking = false;
+      updateSeekUi();
+      syncHighlightFromAudio({ force: true });
       const landed = elements.audio.currentTime;
       if (!(tts.playing && !tts.paused)) setTtsStatus(`已定位到 ${formatClock(landed)}`);
     } finally {
@@ -1075,7 +1131,7 @@ function initializeTts() {
       const position = (time / duration) * tts.syncTotal;
       let index = tts.syncUnits.findIndex((unit) => position < unit.end);
       if (index < 0) index = tts.syncUnits.length - 1;
-      highlightSyncIndex(index, { scroll: false });
+      highlightSyncIndex(index, { scroll: true, behavior: "auto" });
     }
   });
   // Prefer change (fires once) + pointerup for browsers that skip change on touch scrub.

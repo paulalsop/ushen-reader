@@ -412,6 +412,7 @@ body.tts-open .tts-fab {
 }
 
 .tts-progress input[type="range"] {
+  --buffered: 0%;
   width: 100%;
   height: 28px;
   margin: 0;
@@ -425,7 +426,11 @@ body.tts-open .tts-fab {
 .tts-progress input[type="range"]::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--line) 80%, var(--muted));
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent) 34%, var(--line)) 0 var(--buffered, 0%),
+    color-mix(in srgb, var(--line) 80%, var(--muted)) var(--buffered, 0%) 100%
+  );
 }
 
 .tts-progress input[type="range"]::-webkit-slider-thumb {
@@ -442,7 +447,11 @@ body.tts-open .tts-fab {
 .tts-progress input[type="range"]::-moz-range-track {
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--line) 80%, var(--muted));
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent) 34%, var(--line)) 0 var(--buffered, 0%),
+    color-mix(in srgb, var(--line) 80%, var(--muted)) var(--buffered, 0%) 100%
+  );
 }
 
 .tts-progress input[type="range"]::-moz-range-thumb {
