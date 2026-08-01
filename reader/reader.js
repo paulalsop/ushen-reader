@@ -35,10 +35,20 @@ const elements = {
   ttsToggle: document.querySelector("#ttsToggle"),
   ttsBar: document.querySelector("#ttsBar"),
   ttsPlay: document.querySelector("#ttsPlay"),
-  ttsRate: document.querySelector("#ttsRate"),
+  ttsRate: document.querySelector(".tts-rate"),
+  ttsRateToggle: document.querySelector("#ttsRateToggle"),
+  ttsRateLabel: document.querySelector("#ttsRateLabel"),
+  ttsRateMenu: document.querySelector("#ttsRateMenu"),
   ttsAutoNext: document.querySelector("#ttsAutoNext"),
   ttsStatus: document.querySelector("#ttsStatus"),
   audio: document.querySelector("#ttsAudio"),
+};
+
+const RATE_LABELS = {
+  0.8: "0.8×",
+  1: "1.0×",
+  1.25: "1.25×",
+  1.5: "1.5×",
 };
 
 function chapterLabel(chapter) {
@@ -435,28 +445,55 @@ async function loadChapterText(chapter) {
   return text;
 }
 
+function setRateMenuOpen(open) {
+  elements.ttsRateMenu.hidden = !open;
+  elements.ttsRateToggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function syncRateUi() {
+  elements.ttsRateLabel.textContent = RATE_LABELS[tts.rate] || "1.0×";
+  elements.ttsRateMenu.querySelectorAll("[data-rate]").forEach((button) => {
+    button.setAttribute("aria-selected", Number(button.dataset.rate) === tts.rate ? "true" : "false");
+  });
+}
+
+function applyRate(rate) {
+  tts.rate = rate;
+  localStorage.setItem("ushen-tts-rate", String(tts.rate));
+  syncRateUi();
+  setRateMenuOpen(false);
+  if (tts.mode === "audio") {
+    elements.audio.playbackRate = tts.rate;
+    return;
+  }
+  if (tts.playing && !tts.paused && tts.mode === "speech") {
+    const index = Math.max(0, tts.paragraphIndex);
+    cancelSpeech();
+    speakFrom(index);
+  }
+}
+
 function initializeTts() {
   const allowedRates = [0.8, 1, 1.25, 1.5];
   if (!allowedRates.includes(tts.rate)) tts.rate = 1;
-  elements.ttsRate.value = String(tts.rate);
+  syncRateUi();
   elements.ttsAutoNext.checked = tts.autoNext;
 
   elements.ttsToggle.addEventListener("click", () => {
     setTtsBarOpen(!tts.open);
   });
   elements.ttsPlay.addEventListener("click", toggleTtsPlayback);
-  elements.ttsRate.addEventListener("change", () => {
-    tts.rate = Number(elements.ttsRate.value) || 1;
-    localStorage.setItem("ushen-tts-rate", String(tts.rate));
-    if (tts.mode === "audio") {
-      elements.audio.playbackRate = tts.rate;
-      return;
-    }
-    if (tts.playing && !tts.paused && tts.mode === "speech") {
-      const index = Math.max(0, tts.paragraphIndex);
-      cancelSpeech();
-      speakFrom(index);
-    }
+  elements.ttsRateToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setRateMenuOpen(elements.ttsRateMenu.hidden);
+  });
+  elements.ttsRateMenu.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-rate]");
+    if (!button) return;
+    applyRate(Number(button.dataset.rate) || 1);
+  });
+  document.addEventListener("click", (event) => {
+    if (!elements.ttsRate.contains(event.target)) setRateMenuOpen(false);
   });
   elements.ttsAutoNext.addEventListener("change", () => {
     tts.autoNext = elements.ttsAutoNext.checked;

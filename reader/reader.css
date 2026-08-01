@@ -296,21 +296,59 @@ button {
 
 .tts-rate,
 .tts-auto {
+  position: relative;
   display: inline-flex;
   gap: 6px;
   align-items: center;
   min-height: 44px;
 }
 
-.tts-rate select {
-  min-height: 36px;
-  height: 36px;
-  padding: 0 8px;
+.tts-rate-toggle {
+  min-height: 44px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: transparent;
   color: var(--ink);
+  cursor: pointer;
   font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tts-rate-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.tts-rate-menu[hidden] {
+  display: none !important;
+}
+
+.tts-rate-menu button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.tts-rate-menu button[aria-selected="true"],
+.tts-rate-menu button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 
 .tts-auto input {

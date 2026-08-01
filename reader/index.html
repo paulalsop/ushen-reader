@@ -58,15 +58,17 @@
 
         <div class="tts-bar" id="ttsBar" hidden>
           <button class="tts-play" id="ttsPlay" aria-label="播放">播放</button>
-          <label class="tts-rate">
-            语速
-            <select id="ttsRate" aria-label="朗读语速">
-              <option value="0.8">0.8×</option>
-              <option value="1" selected>1.0×</option>
-              <option value="1.25">1.25×</option>
-              <option value="1.5">1.5×</option>
-            </select>
-          </label>
+          <div class="tts-rate">
+            <button type="button" class="tts-rate-toggle" id="ttsRateToggle" aria-label="朗读语速" aria-haspopup="listbox" aria-expanded="false">
+              语速 <span id="ttsRateLabel">1.0×</span>
+            </button>
+            <div class="tts-rate-menu" id="ttsRateMenu" role="listbox" hidden>
+              <button type="button" role="option" data-rate="0.8">0.8×</button>
+              <button type="button" role="option" data-rate="1" aria-selected="true">1.0×</button>
+              <button type="button" role="option" data-rate="1.25">1.25×</button>
+              <button type="button" role="option" data-rate="1.5">1.5×</button>
+            </div>
+          </div>
           <label class="tts-auto">
             <input type="checkbox" id="ttsAutoNext" checked />
             连播
