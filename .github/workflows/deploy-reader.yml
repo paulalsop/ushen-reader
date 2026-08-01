@@ -47,10 +47,11 @@ jobs:
       - name: Build reader with audio batch
         env:
           USHEN_TTS: "1"
-          USHEN_TTS_VOICE: zh-CN-XiaoxiaoNeural
-          # Only newly synthesize this many missing/changed chapters per run.
-          # Cached chapters are always copied into the deploy artifact.
-          USHEN_TTS_BATCH: "15"
+          # Synthesize both switchable voices; each chapter may produce two mp3s.
+          USHEN_TTS_VOICES: xiaoxiao,yunjian
+          # Only fill this many incomplete chapters per run.
+          # Cached chapter/voice files are always copied into the deploy artifact.
+          USHEN_TTS_BATCH: "10"
         run: python3 build_reader.py --with-audio
 
       - name: Configure Pages

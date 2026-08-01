@@ -57,23 +57,42 @@
         </footer>
 
         <div class="tts-bar" id="ttsBar" hidden>
-          <button class="tts-play" id="ttsPlay" aria-label="播放">播放</button>
-          <div class="tts-rate">
-            <button type="button" class="tts-rate-toggle" id="ttsRateToggle" aria-label="朗读语速" aria-haspopup="listbox" aria-expanded="false">
-              语速 <span id="ttsRateLabel">1.0×</span>
-            </button>
-            <div class="tts-rate-menu" id="ttsRateMenu" role="listbox" hidden>
-              <button type="button" role="option" data-rate="0.8">0.8×</button>
-              <button type="button" role="option" data-rate="1" aria-selected="true">1.0×</button>
-              <button type="button" role="option" data-rate="1.25">1.25×</button>
-              <button type="button" role="option" data-rate="1.5">1.5×</button>
+          <div class="tts-shell">
+            <div class="tts-row tts-row-top">
+              <div class="tts-voices" id="ttsVoices" role="group" aria-label="听书音色"></div>
+              <label class="tts-auto">
+                <input type="checkbox" id="ttsAutoNext" checked />
+                <span>连播</span>
+              </label>
+            </div>
+
+            <div class="tts-progress">
+              <input type="range" id="ttsSeek" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
+              <div class="tts-times">
+                <span id="ttsCurrent">0:00</span>
+                <span id="ttsDuration">0:00</span>
+              </div>
+            </div>
+
+            <div class="tts-row tts-row-controls">
+              <button class="tts-play" id="ttsPlay" aria-label="播放">
+                <span class="tts-play-icon" aria-hidden="true">▶</span>
+              </button>
+              <div class="tts-rate">
+                <button type="button" class="tts-rate-toggle" id="ttsRateToggle" aria-label="朗读语速" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="tts-rate-caption">语速</span>
+                  <span id="ttsRateLabel">1.0×</span>
+                </button>
+                <div class="tts-rate-menu" id="ttsRateMenu" role="listbox" hidden>
+                  <button type="button" role="option" data-rate="0.8">0.8×</button>
+                  <button type="button" role="option" data-rate="1" aria-selected="true">1.0×</button>
+                  <button type="button" role="option" data-rate="1.25">1.25×</button>
+                  <button type="button" role="option" data-rate="1.5">1.5×</button>
+                </div>
+              </div>
+              <span class="tts-status" id="ttsStatus">准备听书</span>
             </div>
           </div>
-          <label class="tts-auto">
-            <input type="checkbox" id="ttsAutoNext" checked />
-            连播
-          </label>
-          <span class="tts-status" id="ttsStatus">准备听书</span>
           <audio id="ttsAudio" preload="none" playsinline></audio>
         </div>
       </main>

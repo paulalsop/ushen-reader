@@ -94,18 +94,19 @@ def build(*, with_audio: bool | None = None) -> None:
         shutil.copy2(ROOT / "reader" / asset, DIST / asset)
 
     chapters = collect_chapters()
-    synthesize_chapters(chapters, DIST, enabled=with_audio)
+    voices = synthesize_chapters(chapters, DIST, enabled=with_audio)
 
     payload = {
         "book": "有神",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "voices": voices,
         "chapters": chapters,
     }
     (DIST / "chapters.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     (DIST / ".nojekyll").touch()
-    audio_count = sum(1 for chapter in chapters if chapter.get("audioUrl"))
+    audio_count = sum(1 for chapter in chapters if chapter.get("audio") or chapter.get("audioUrl"))
     print(f"Built reader with {len(chapters)} chapters ({audio_count} with audio) in {DIST}")
 
 

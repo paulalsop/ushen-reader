@@ -1,5 +1,11 @@
+const DEFAULT_VOICES = [
+  { id: "xiaoxiao", label: "晓晓" },
+  { id: "yunjian", label: "云健" },
+];
+
 const state = {
   chapters: [],
+  voices: DEFAULT_VOICES,
   currentIndex: -1,
   generatedAt: null,
   prefetched: new Map(),
@@ -15,12 +21,14 @@ const tts = {
   mode: "none", // audio | speech | none
   rate: Number(localStorage.getItem("ushen-tts-rate") || 1),
   autoNext: localStorage.getItem("ushen-tts-auto-next") !== "0",
+  voiceId: localStorage.getItem("ushen-tts-voice") || "xiaoxiao",
   paragraphIndex: -1,
   resumeAfterChapter: false,
   voice: null,
   currentUtterance: null,
   watchdogId: null,
   chromeKeepAliveId: null,
+  seeking: false,
 };
 
 const elements = {
@@ -35,12 +43,16 @@ const elements = {
   ttsToggle: document.querySelector("#ttsToggle"),
   ttsBar: document.querySelector("#ttsBar"),
   ttsPlay: document.querySelector("#ttsPlay"),
+  ttsVoices: document.querySelector("#ttsVoices"),
   ttsRate: document.querySelector(".tts-rate"),
   ttsRateToggle: document.querySelector("#ttsRateToggle"),
   ttsRateLabel: document.querySelector("#ttsRateLabel"),
   ttsRateMenu: document.querySelector("#ttsRateMenu"),
   ttsAutoNext: document.querySelector("#ttsAutoNext"),
   ttsStatus: document.querySelector("#ttsStatus"),
+  ttsSeek: document.querySelector("#ttsSeek"),
+  ttsCurrent: document.querySelector("#ttsCurrent"),
+  ttsDuration: document.querySelector("#ttsDuration"),
   audio: document.querySelector("#ttsAudio"),
 };
 
@@ -59,8 +71,28 @@ function currentChapter() {
   return state.chapters[state.currentIndex] || null;
 }
 
-function chapterHasAudio(chapter = currentChapter()) {
-  return Boolean(chapter?.audioUrl);
+function chapterAudioMap(chapter = currentChapter()) {
+  if (!chapter) return {};
+  if (chapter.audio && typeof chapter.audio === "object") return chapter.audio;
+  if (chapter.audioUrl) return { xiaoxiao: chapter.audioUrl };
+  return {};
+}
+
+function chapterAudioUrl(chapter = currentChapter(), voiceId = tts.voiceId) {
+  const audio = chapterAudioMap(chapter);
+  return audio[voiceId] || audio.xiaoxiao || audio.yunjian || Object.values(audio)[0] || "";
+}
+
+function chapterHasAudio(chapter = currentChapter(), voiceId = tts.voiceId) {
+  return Boolean(chapterAudioUrl(chapter, voiceId));
+}
+
+function chapterHasAnyAudio(chapter = currentChapter()) {
+  return Object.keys(chapterAudioMap(chapter)).length > 0;
+}
+
+function voiceLabel(voiceId = tts.voiceId) {
+  return state.voices.find((voice) => voice.id === voiceId)?.label || voiceId;
 }
 
 function updateCatalog() {
@@ -80,7 +112,7 @@ function updateCatalog() {
     title.textContent = chapterLabel(chapter);
 
     button.append(number, title);
-    if (chapter.audioUrl) {
+    if (chapterHasAnyAudio(chapter)) {
       const audioBadge = document.createElement("span");
       audioBadge.className = "audio-badge";
       audioBadge.textContent = "听";
@@ -98,7 +130,7 @@ function updateCatalog() {
   });
 
   const draftCount = state.chapters.filter((chapter) => chapter.status === "draft").length;
-  const audioCount = state.chapters.filter((chapter) => chapter.audioUrl).length;
+  const audioCount = state.chapters.filter((chapter) => chapterHasAnyAudio(chapter)).length;
   const audioLabel = audioCount ? ` · ${audioCount} 章可听` : "";
   elements.chapterCount.textContent = `${state.chapters.length} 章${draftCount ? ` · ${draftCount} 章创作中` : ""}${audioLabel}`;
   const generated = new Date(state.generatedAt);
@@ -149,16 +181,53 @@ function setTtsStatus(text) {
 }
 
 function updateTtsPlayButton() {
-  if (!tts.playing) {
-    elements.ttsPlay.textContent = "播放";
-    elements.ttsPlay.setAttribute("aria-label", "播放");
-  } else if (tts.paused) {
-    elements.ttsPlay.textContent = "继续";
-    elements.ttsPlay.setAttribute("aria-label", "继续");
+  const icon = elements.ttsPlay.querySelector(".tts-play-icon");
+  if (!tts.playing || tts.paused) {
+    if (icon) icon.textContent = "▶";
+    elements.ttsPlay.dataset.state = "paused";
+    elements.ttsPlay.setAttribute("aria-label", tts.playing ? "继续" : "播放");
   } else {
-    elements.ttsPlay.textContent = "暂停";
+    if (icon) icon.textContent = "❚❚";
+    elements.ttsPlay.dataset.state = "playing";
     elements.ttsPlay.setAttribute("aria-label", "暂停");
   }
+}
+
+function resetSeekUi() {
+  elements.ttsSeek.value = "0";
+  elements.ttsCurrent.textContent = "0:00";
+  elements.ttsDuration.textContent = "0:00";
+}
+
+function updateSeekUi() {
+  if (tts.seeking) return;
+  const duration = elements.audio.duration;
+  const current = elements.audio.currentTime;
+  elements.ttsCurrent.textContent = formatClock(current);
+  elements.ttsDuration.textContent = formatClock(duration);
+  if (Number.isFinite(duration) && duration > 0) {
+    elements.ttsSeek.value = String(Math.round((current / duration) * 1000));
+  }
+}
+
+function renderVoiceButtons() {
+  elements.ttsVoices.replaceChildren();
+  const chapter = currentChapter();
+  state.voices.forEach((voice) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tts-voice";
+    button.dataset.voice = voice.id;
+    button.textContent = voice.label;
+    button.setAttribute("aria-pressed", voice.id === tts.voiceId ? "true" : "false");
+    button.disabled = Boolean(chapter) && !chapterHasAudio(chapter, voice.id) && chapterHasAnyAudio(chapter);
+    if (chapter && !chapterHasAnyAudio(chapter)) button.disabled = false;
+    button.title = chapterHasAudio(chapter, voice.id)
+      ? `${voice.label}已可听`
+      : `${voice.label}音频生成中`;
+    button.addEventListener("click", () => selectVoice(voice.id));
+    elements.ttsVoices.append(button);
+  });
 }
 
 function clearSpeechWatchdog() {
@@ -190,6 +259,7 @@ function stopTts({ keepBar = true, status = "已停止" } = {}) {
   cancelSpeech();
   stopAudio();
   clearTtsHighlight();
+  resetSeekUi();
   updateTtsPlayButton();
   if (keepBar && tts.open) setTtsStatus(status);
 }
@@ -203,14 +273,13 @@ function formatClock(seconds) {
 }
 
 function updateAudioStatus() {
+  updateSeekUi();
   if (tts.mode !== "audio" || !tts.playing) return;
   if (tts.paused) {
-    setTtsStatus("已暂停");
+    setTtsStatus(`已暂停 · ${voiceLabel()}`);
     return;
   }
-  const current = formatClock(elements.audio.currentTime);
-  const duration = formatClock(elements.audio.duration);
-  setTtsStatus(`听书中 ${current} / ${duration}`);
+  setTtsStatus(`听书中 · ${voiceLabel()}`);
 }
 
 function handleChapterEnded() {
@@ -311,10 +380,23 @@ function speakFrom(index) {
   speechSynthesis.speak(utterance);
 }
 
-async function startAudioPlayback(chapter) {
+async function startAudioPlayback(chapter, { resumeRatio = 0 } = {}) {
+  const audioUrl = chapterAudioUrl(chapter, tts.voiceId);
+  if (!audioUrl) {
+    startSpeechPlayback();
+    return;
+  }
+
   tts.mode = "audio";
-  elements.audio.src = chapter.audioUrl;
+  elements.audio.src = audioUrl;
   elements.audio.playbackRate = tts.rate;
+
+  const seekWhenReady = () => {
+    if (!resumeRatio || !Number.isFinite(elements.audio.duration) || elements.audio.duration <= 0) return;
+    elements.audio.currentTime = elements.audio.duration * resumeRatio;
+  };
+  elements.audio.addEventListener("loadedmetadata", seekWhenReady, { once: true });
+
   try {
     await elements.audio.play();
   } catch (error) {
@@ -326,6 +408,42 @@ async function startAudioPlayback(chapter) {
   tts.paused = false;
   updateTtsPlayButton();
   updateAudioStatus();
+  renderVoiceButtons();
+}
+
+async function selectVoice(voiceId) {
+  if (voiceId === tts.voiceId) return;
+  const chapter = currentChapter();
+  if (chapter && chapterHasAnyAudio(chapter) && !chapterHasAudio(chapter, voiceId)) {
+    setTtsStatus(`${voiceLabel(voiceId)}音频生成中`);
+    return;
+  }
+
+  const inAudio = tts.mode === "audio" && tts.playing;
+  const shouldResume = inAudio && !tts.paused;
+  const resumeRatio =
+    inAudio && Number.isFinite(elements.audio.duration) && elements.audio.duration > 0
+      ? elements.audio.currentTime / elements.audio.duration
+      : 0;
+
+  tts.voiceId = voiceId;
+  localStorage.setItem("ushen-tts-voice", voiceId);
+  renderVoiceButtons();
+
+  if (!chapter) {
+    setTtsStatus(readyStatus());
+    return;
+  }
+
+  if (inAudio) {
+    cancelSpeech();
+    stopAudio();
+    await startAudioPlayback(chapter, { resumeRatio });
+    if (!shouldResume && tts.playing) pauseTts();
+    return;
+  }
+
+  setTtsStatus(readyStatus(chapter));
 }
 
 function startSpeechPlayback() {
@@ -400,7 +518,8 @@ function toggleTtsPlayback() {
 }
 
 function readyStatus(chapter = currentChapter()) {
-  if (chapterHasAudio(chapter)) return "可听 · 神经语音";
+  if (chapterHasAudio(chapter)) return `可听 · ${voiceLabel()}`;
+  if (chapterHasAnyAudio(chapter)) return `${voiceLabel()}生成中 · 可换音色或浏览器朗读`;
   return "待生成 · 可先浏览器朗读";
 }
 
@@ -409,8 +528,12 @@ function setTtsBarOpen(open) {
   elements.ttsBar.hidden = !open;
   elements.ttsToggle.setAttribute("aria-pressed", open ? "true" : "false");
   document.body.classList.toggle("tts-open", open);
-  if (!open) stopTts({ keepBar: false });
-  else if (!tts.playing) setTtsStatus(readyStatus());
+  if (!open) {
+    stopTts({ keepBar: false });
+    return;
+  }
+  renderVoiceButtons();
+  if (!tts.playing) setTtsStatus(readyStatus());
 }
 
 function prefetchChapter(index) {
@@ -501,6 +624,7 @@ function initializeTts() {
   });
 
   elements.audio.addEventListener("timeupdate", updateAudioStatus);
+  elements.audio.addEventListener("loadedmetadata", updateSeekUi);
   elements.audio.addEventListener("ended", () => {
     if (tts.mode !== "audio") return;
     handleChapterEnded();
@@ -510,10 +634,32 @@ function initializeTts() {
     stopTts({ status: "音频加载失败" });
   });
 
+  elements.ttsSeek.addEventListener("pointerdown", () => {
+    tts.seeking = true;
+  });
+  elements.ttsSeek.addEventListener("input", () => {
+    const duration = elements.audio.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    const ratio = Number(elements.ttsSeek.value) / 1000;
+    elements.ttsCurrent.textContent = formatClock(duration * ratio);
+  });
+  const commitSeek = () => {
+    const duration = elements.audio.duration;
+    tts.seeking = false;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    elements.audio.currentTime = (Number(elements.ttsSeek.value) / 1000) * duration;
+    updateAudioStatus();
+  };
+  elements.ttsSeek.addEventListener("pointerup", commitSeek);
+  elements.ttsSeek.addEventListener("change", commitSeek);
+
   if (tts.speechSupported) {
     refreshVoice();
     speechSynthesis.addEventListener("voiceschanged", refreshVoice);
   }
+
+  if (!state.voices.some((voice) => voice.id === tts.voiceId)) tts.voiceId = state.voices[0]?.id || "xiaoxiao";
+  renderVoiceButtons();
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && tts.playing && !tts.paused) pauseTts();
@@ -565,6 +711,7 @@ async function openChapter(index, options = {}) {
   updateProgress();
 
   if (index + 1 < state.chapters.length) prefetchChapter(index + 1);
+  renderVoiceButtons();
   if (tts.open && !tts.playing) setTtsStatus(readyStatus(chapter));
 
   if (keepPlaying) startTts();
@@ -588,7 +735,18 @@ async function loadCatalog({ initial = false } = {}) {
     const currentNumber = state.chapters[state.currentIndex]?.number;
     state.chapters = payload.chapters;
     state.generatedAt = payload.generatedAt;
+    if (Array.isArray(payload.voices) && payload.voices.length) {
+      state.voices = payload.voices.map((voice) => ({
+        id: voice.id,
+        label: voice.label || voice.id,
+      }));
+      if (!state.voices.some((voice) => voice.id === tts.voiceId)) {
+        tts.voiceId = state.voices[0].id;
+        localStorage.setItem("ushen-tts-voice", tts.voiceId);
+      }
+    }
     updateCatalog();
+    renderVoiceButtons();
 
     if (initial) {
       await openChapter(requestedChapter());

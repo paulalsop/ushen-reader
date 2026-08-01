@@ -250,48 +250,161 @@ button {
   right: 0;
   bottom: 0;
   z-index: 12;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: center;
   width: min(760px, calc(100% - var(--sidebar-width) - 48px));
   margin: 0 auto;
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-  border: 1px solid var(--line);
-  border-bottom: 0;
-  border-radius: 12px 12px 0 0;
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
-  backdrop-filter: blur(14px);
-  color: var(--muted);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 12px;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
+  pointer-events: none;
 }
 
 .tts-bar[hidden] {
   display: none !important;
 }
 
+.tts-shell {
+  pointer-events: auto;
+  display: grid;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--paper) 88%, #fff) 0%, color-mix(in srgb, var(--paper-deep) 92%, var(--paper)) 100%);
+  box-shadow: 0 10px 36px rgba(43, 41, 37, 0.12);
+  backdrop-filter: blur(16px);
+  color: var(--muted);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 12px;
+}
+
 .tts-bar audio {
   display: none;
 }
 
-.tts-play {
-  min-width: 52px;
-  min-height: 44px;
-  height: 44px;
-  padding: 0 14px;
+.tts-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tts-row-top {
+  justify-content: space-between;
+}
+
+.tts-voices {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tts-voice {
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  font: inherit;
+  letter-spacing: 0.04em;
   -webkit-tap-highlight-color: transparent;
 }
 
-.tts-play:hover {
-  border-color: var(--accent);
+.tts-voice[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
+}
+
+.tts-voice:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.tts-progress {
+  display: grid;
+  gap: 4px;
+}
+
+.tts-progress input[type="range"] {
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tts-progress input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 80%, var(--muted));
+}
+
+.tts-progress input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tts-progress input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 80%, var(--muted));
+}
+
+.tts-progress input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.tts-times {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.tts-row-controls {
+  gap: 12px;
+}
+
+.tts-play {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff8ef;
+  cursor: pointer;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tts-play .tts-play-icon {
+  display: block;
+  margin-left: 2px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tts-play[data-state="playing"] .tts-play-icon {
+  margin-left: 0;
+  letter-spacing: 1px;
 }
 
 .tts-rate,
@@ -300,19 +413,24 @@ button {
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  min-height: 44px;
+  min-height: 36px;
 }
 
 .tts-rate-toggle {
-  min-height: 44px;
-  padding: 0 10px;
+  min-height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
   color: var(--ink);
   cursor: pointer;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
+}
+
+.tts-rate-caption {
+  margin-right: 4px;
+  color: var(--muted);
 }
 
 .tts-rate-menu {
@@ -325,9 +443,9 @@ button {
   min-width: 96px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--paper);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
 }
 
 .tts-rate-menu[hidden] {
@@ -351,20 +469,37 @@ button {
   color: var(--accent);
 }
 
+.tts-auto {
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
 .tts-auto input {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   accent-color: var(--accent);
 }
 
 .tts-status {
-  margin-left: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.tts-open .chapter,
 body.tts-open .chapter-nav {
-  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px));
+}
+
+body.dark .tts-shell {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--paper) 92%, #2a2b2a) 0%, var(--paper-deep) 100%);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 .chapter-status {
@@ -496,13 +631,16 @@ body.dark .chapter-link.active {
 
   .tts-bar {
     left: 0;
-    width: calc(100% - 20px);
-    gap: 8px 12px;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 16px);
+  }
+
+  .tts-shell {
+    margin-bottom: 8px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
   .tts-status {
-    flex: 1 1 100%;
-    margin-left: 0;
+    text-align: left;
   }
 }
