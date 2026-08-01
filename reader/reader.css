@@ -257,81 +257,62 @@ button {
 
 .tts-fab {
   position: fixed;
-  right: max(20px, calc((100vw - var(--sidebar-width) - min(760px, calc(100vw - var(--sidebar-width) - 48px))) / 2 + 8px));
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
-  z-index: 14;
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  min-width: 64px;
-  height: 64px;
-  padding: 0 18px;
+  top: 42%;
+  right: 18px;
+  left: auto;
+  bottom: auto;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--accent);
   color: #fff8ef;
-  cursor: pointer;
+  cursor: grab;
   box-shadow:
-    0 12px 28px color-mix(in srgb, var(--accent) 40%, transparent),
-    0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent);
+    0 10px 28px rgba(155, 63, 47, 0.35),
+    0 0 0 5px rgba(155, 63, 47, 0.12);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: 0.18em;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease, bottom 180ms ease;
+  touch-action: none;
+  user-select: none;
 }
 
-.tts-fab:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 16px 32px color-mix(in srgb, var(--accent) 46%, transparent),
-    0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent);
+.tts-fab:active {
+  cursor: grabbing;
 }
 
 .tts-fab-label {
-  margin-right: -0.18em;
+  margin-right: -0.12em;
 }
 
-.tts-fab-wave {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: color-mix(in srgb, #fff8ef 85%, transparent);
-  box-shadow: 0 0 0 0 color-mix(in srgb, #fff8ef 45%, transparent);
-}
-
-body.tts-playing .tts-fab-wave {
-  animation: tts-pulse 1.4s ease-out infinite;
+body.tts-playing .tts-fab {
+  box-shadow:
+    0 10px 28px rgba(155, 63, 47, 0.4),
+    0 0 0 7px rgba(155, 63, 47, 0.18);
 }
 
 body.tts-open .tts-fab {
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(0.85);
-}
-
-@keyframes tts-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, #fff8ef 45%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 12px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
+  background: var(--paper-deep);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 8px 22px rgba(43, 41, 37, 0.16);
 }
 
 .tts-bar {
   position: fixed;
-  left: var(--sidebar-width);
-  right: 0;
-  bottom: 0;
-  z-index: 13;
-  width: min(760px, calc(100% - var(--sidebar-width) - 48px));
-  margin: 0 auto;
+  left: 50%;
+  right: auto;
+  bottom: 16px;
+  z-index: 39;
+  width: min(520px, calc(100vw - 24px));
+  transform: translateX(-50%);
   padding: 0 0 env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
   pointer-events: none;
@@ -344,15 +325,13 @@ body.tts-open .tts-fab {
 .tts-shell {
   pointer-events: auto;
   display: grid;
-  gap: 10px;
-  margin: 0 0 10px;
-  padding: 14px 16px 12px;
+  gap: 14px;
+  padding: 16px 16px 14px;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--paper) 88%, #fff) 0%, color-mix(in srgb, var(--paper-deep) 92%, var(--paper)) 100%);
-  box-shadow: 0 10px 36px rgba(43, 41, 37, 0.12);
-  backdrop-filter: blur(16px);
+  border-radius: 22px;
+  background: rgba(243, 236, 220, 0.96);
+  box-shadow: 0 18px 48px rgba(43, 41, 37, 0.18);
+  backdrop-filter: blur(18px);
   color: var(--muted);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   font-size: 12px;
@@ -362,18 +341,23 @@ body.tts-open .tts-fab {
   display: none;
 }
 
-.tts-row {
+.tts-head {
   display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.tts-row-top {
+  gap: 12px;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
-.tts-top-actions {
-  display: inline-flex;
+.tts-kicker {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.tts-row {
+  display: flex;
   gap: 10px;
   align-items: center;
 }
@@ -396,22 +380,24 @@ body.tts-open .tts-fab {
 }
 
 .tts-voice {
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.35);
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  letter-spacing: 0.04em;
+  font-size: 13px;
+  letter-spacing: 0.08em;
   -webkit-tap-highlight-color: transparent;
 }
 
 .tts-voice[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  background: rgba(155, 63, 47, 0.12);
   color: var(--accent);
+  font-weight: 650;
 }
 
 .tts-voice:disabled {
@@ -429,6 +415,7 @@ body.tts-open .tts-fab {
   width: 100%;
   height: 28px;
   margin: 0;
+  -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
@@ -612,9 +599,12 @@ body.tts-open .chapter-nav {
 }
 
 body.dark .tts-shell {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--paper) 92%, #2a2b2a) 0%, var(--paper-deep) 100%);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  background: rgba(27, 28, 27, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+body.dark .tts-voice {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .chapter-status {
@@ -718,12 +708,13 @@ body.dark .chapter-link.active {
   }
 
   .tts-fab {
-    right: 16px;
-    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
-    min-width: 60px;
-    height: 60px;
-    padding: 0 16px;
-    font-size: 15px;
+    top: 40%;
+    right: 14px;
+    bottom: auto;
+    left: auto;
+    width: 54px;
+    height: 54px;
+    font-size: 17px;
   }
 
   .scrim {
@@ -754,14 +745,16 @@ body.dark .chapter-link.active {
   }
 
   .tts-bar {
-    left: 0;
-    width: calc(100% - 16px);
+    left: 50%;
+    right: auto;
+    bottom: 10px;
+    width: calc(100vw - 16px);
+    transform: translateX(-50%);
   }
 
   .tts-shell {
-    margin-bottom: 8px;
-    padding: 12px;
-    border-radius: 16px;
+    padding: 14px 12px 12px;
+    border-radius: 18px;
   }
 
   .tts-status {

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f3ecdc" />
     <meta name="description" content="《有神》在线阅读器" />
     <title>有神 · 在线阅读</title>
-    <link rel="stylesheet" href="reader.css" />
+    <link rel="stylesheet" href="reader.css?v=20260801e" />
   </head>
   <body>
     <div class="app-shell">
@@ -54,58 +54,62 @@
           <button id="previousChapter">← 上一章</button>
           <button id="nextChapter">下一章 →</button>
         </footer>
-
-        <button type="button" class="tts-fab" id="ttsToggle" aria-label="打开听书" aria-pressed="false">
-          <span class="tts-fab-label">听书</span>
-          <span class="tts-fab-wave" aria-hidden="true"></span>
-        </button>
-
-        <div class="tts-bar" id="ttsBar" hidden>
-          <div class="tts-shell">
-            <div class="tts-row tts-row-top">
-              <div class="tts-voices" id="ttsVoices" role="group" aria-label="听书音色"></div>
-              <div class="tts-top-actions">
-                <label class="tts-auto">
-                  <input type="checkbox" id="ttsAutoNext" checked />
-                  <span>连播</span>
-                </label>
-                <button type="button" class="tts-close" id="ttsClose" aria-label="收起听书">收起</button>
-              </div>
-            </div>
-
-            <div class="tts-progress">
-              <input type="range" id="ttsSeek" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
-              <div class="tts-times">
-                <span id="ttsCurrent">0:00</span>
-                <button type="button" class="tts-restart" id="ttsRestart" aria-label="从头播放">从头</button>
-                <span id="ttsDuration">0:00</span>
-              </div>
-            </div>
-
-            <div class="tts-row tts-row-controls">
-              <button class="tts-play" id="ttsPlay" aria-label="播放">
-                <span class="tts-play-icon" aria-hidden="true">▶</span>
-              </button>
-              <div class="tts-rate">
-                <button type="button" class="tts-rate-toggle" id="ttsRateToggle" aria-label="朗读语速" aria-haspopup="listbox" aria-expanded="false">
-                  <span class="tts-rate-caption">语速</span>
-                  <span id="ttsRateLabel">1.0×</span>
-                </button>
-                <div class="tts-rate-menu" id="ttsRateMenu" role="listbox" hidden>
-                  <button type="button" role="option" data-rate="0.8">0.8×</button>
-                  <button type="button" role="option" data-rate="1" aria-selected="true">1.0×</button>
-                  <button type="button" role="option" data-rate="1.25">1.25×</button>
-                  <button type="button" role="option" data-rate="1.5">1.5×</button>
-                </div>
-              </div>
-              <span class="tts-status" id="ttsStatus">准备听书</span>
-            </div>
-          </div>
-          <audio id="ttsAudio" preload="metadata" playsinline></audio>
-        </div>
       </main>
     </div>
+
+    <button type="button" class="tts-fab" id="ttsToggle" aria-label="打开听书" aria-pressed="false">
+      <span class="tts-fab-label">听</span>
+    </button>
+
+    <div class="tts-bar" id="ttsBar" hidden>
+      <div class="tts-shell">
+        <div class="tts-head">
+          <div>
+            <p class="tts-kicker">听书</p>
+            <div class="tts-voices" id="ttsVoices" role="group" aria-label="听书音色">
+              <button type="button" class="tts-voice" data-voice="xiaoxiao" aria-pressed="true">晓晓</button>
+              <button type="button" class="tts-voice" data-voice="yunjian" aria-pressed="false">云健</button>
+            </div>
+          </div>
+          <button type="button" class="tts-close" id="ttsClose" aria-label="收起听书">收起</button>
+        </div>
+
+        <div class="tts-progress">
+          <input type="range" id="ttsSeek" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
+          <div class="tts-times">
+            <span id="ttsCurrent">0:00</span>
+            <button type="button" class="tts-restart" id="ttsRestart" aria-label="从头播放">从头</button>
+            <span id="ttsDuration">0:00</span>
+          </div>
+        </div>
+
+        <div class="tts-row tts-row-controls">
+          <button class="tts-play" id="ttsPlay" aria-label="播放">
+            <span class="tts-play-icon" aria-hidden="true">▶</span>
+          </button>
+          <div class="tts-rate">
+            <button type="button" class="tts-rate-toggle" id="ttsRateToggle" aria-label="朗读语速" aria-haspopup="listbox" aria-expanded="false">
+              <span class="tts-rate-caption">语速</span>
+              <span id="ttsRateLabel">1.0×</span>
+            </button>
+            <div class="tts-rate-menu" id="ttsRateMenu" role="listbox" hidden>
+              <button type="button" role="option" data-rate="0.8">0.8×</button>
+              <button type="button" role="option" data-rate="1" aria-selected="true">1.0×</button>
+              <button type="button" role="option" data-rate="1.25">1.25×</button>
+              <button type="button" role="option" data-rate="1.5">1.5×</button>
+            </div>
+          </div>
+          <label class="tts-auto">
+            <input type="checkbox" id="ttsAutoNext" checked />
+            <span>连播</span>
+          </label>
+          <span class="tts-status" id="ttsStatus">准备听书</span>
+        </div>
+      </div>
+      <audio id="ttsAudio" preload="metadata" playsinline></audio>
+    </div>
+
     <div class="scrim" id="scrim"></div>
-    <script src="reader.js"></script>
+    <script src="reader.js?v=20260801e"></script>
   </body>
 </html>

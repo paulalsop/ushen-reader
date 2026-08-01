@@ -248,16 +248,126 @@ function highlightSyncIndex(index, { scroll = true } = {}) {
   }
 }
 
-function syncHighlightFromAudio() {
-  if (tts.mode !== "audio" || !tts.syncTotal) return;
+function syncHighlightFromAudio({ force = false } = {}) {
+  if (!tts.syncTotal) buildAudioSyncMap();
+  if (!tts.syncTotal) return;
   const duration = elements.audio.duration;
   if (!Number.isFinite(duration) || duration <= 0) return;
+  if (!force && tts.mode !== "audio" && !tts.seeking) return;
 
   const ratio = Math.min(1, Math.max(0, elements.audio.currentTime / duration));
   const position = ratio * tts.syncTotal;
   let index = tts.syncUnits.findIndex((unit) => position < unit.end);
   if (index < 0) index = tts.syncUnits.length - 1;
   highlightSyncIndex(index, { scroll: !tts.seeking });
+}
+
+function prepareChapterAudio(chapter = currentChapter()) {
+  const audioUrl = chapterAudioUrl(chapter);
+  if (!audioUrl) {
+    elements.ttsSeek.disabled = true;
+    resetSeekUi();
+    return false;
+  }
+  elements.ttsSeek.disabled = false;
+  if (elements.audio.dataset.src !== audioUrl) {
+    elements.audio.src = audioUrl;
+    elements.audio.dataset.src = audioUrl;
+    elements.audio.load();
+  }
+  return true;
+}
+
+function waitForAudioDuration(timeoutMs = 4000) {
+  const audio = elements.audio;
+  if (Number.isFinite(audio.duration) && audio.duration > 0) {
+    return Promise.resolve(audio.duration);
+  }
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (fn, value) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
+      audio.removeEventListener("loadedmetadata", onMeta);
+      audio.removeEventListener("durationchange", onMeta);
+      audio.removeEventListener("error", onError);
+      fn(value);
+    };
+    const onMeta = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) finish(resolve, audio.duration);
+    };
+    const onError = () => finish(reject, new Error("audio metadata failed"));
+    const timer = window.setTimeout(() => finish(reject, new Error("audio metadata timeout")), timeoutMs);
+    audio.addEventListener("loadedmetadata", onMeta);
+    audio.addEventListener("durationchange", onMeta);
+    audio.addEventListener("error", onError);
+    if (audio.readyState < 1) audio.load();
+  });
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function unlockAudioSeek() {
+  const audio = elements.audio;
+  if (audio.readyState >= 2) return;
+  const wasPaused = audio.paused;
+  try {
+    await audio.play();
+  } catch (_) {
+    /* autoplay may be blocked before a user gesture; ignore */
+  }
+  if (wasPaused) audio.pause();
+}
+
+async function seekAudioTo(time) {
+  const audio = elements.audio;
+  if (!audio.dataset.src && !audio.src) return false;
+  try {
+    await waitForAudioDuration();
+  } catch (error) {
+    console.warn(error);
+    return false;
+  }
+  const duration = audio.duration;
+  const target = Math.min(Math.max(0, time), Math.max(0, duration - 0.05));
+  if (Math.abs(audio.currentTime - target) < 0.08) {
+    updateSeekUi();
+    syncHighlightFromAudio({ force: true });
+    return true;
+  }
+
+  const attemptSeek = () => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      audio.removeEventListener("seeked", finish);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, 500);
+    audio.addEventListener("seeked", finish);
+    try {
+      audio.currentTime = target;
+    } catch (error) {
+      console.warn(error);
+      finish();
+    }
+  });
+
+  await attemptSeek();
+  if (Math.abs(audio.currentTime - target) > 0.35) {
+    await unlockAudioSeek();
+    await attemptSeek();
+  }
+
+  const ok = Math.abs(audio.currentTime - target) <= 0.5;
+  updateSeekUi();
+  syncHighlightFromAudio({ force: true });
+  return ok;
 }
 
 function setTtsStatus(text) {
@@ -329,9 +439,11 @@ function cancelSpeech() {
   speechSynthesis.cancel();
 }
 
-function stopAudio() {
+function stopAudio({ clearSrc = false } = {}) {
   elements.audio.pause();
+  if (!clearSrc) return;
   elements.audio.removeAttribute("src");
+  delete elements.audio.dataset.src;
   elements.audio.load();
 }
 
@@ -343,11 +455,12 @@ function positionStorageKey(chapter = currentChapter(), voiceId = tts.voiceId) {
 function savePlaybackPosition() {
   const chapter = currentChapter();
   const key = positionStorageKey(chapter);
-  if (!key || tts.mode !== "audio") return;
+  if (!key || !chapterHasAudio(chapter)) return;
   const current = elements.audio.currentTime;
   const duration = elements.audio.duration;
   if (!Number.isFinite(current) || !Number.isFinite(duration) || duration <= 0) return;
-  if (current < 3 || current >= duration - 8) {
+  const nearEnd = duration > 30 ? current >= duration - 8 : current >= duration * 0.9;
+  if (current < 1.5 || nearEnd) {
     localStorage.removeItem(key);
     return;
   }
@@ -366,7 +479,7 @@ function clearPlaybackPosition(chapter = currentChapter(), voiceId = tts.voiceId
   if (key) localStorage.removeItem(key);
 }
 
-function stopTts({ keepBar = true, status = "已停止" } = {}) {
+function stopTts({ keepBar = true, status = "已停止", clearSrc = false } = {}) {
   savePlaybackPosition();
   tts.playing = false;
   tts.paused = false;
@@ -374,9 +487,10 @@ function stopTts({ keepBar = true, status = "已停止" } = {}) {
   tts.paragraphIndex = -1;
   tts.resumeAfterChapter = false;
   cancelSpeech();
-  stopAudio();
+  stopAudio({ clearSrc });
   clearTtsHighlight();
-  resetSeekUi();
+  if (clearSrc || !elements.audio.dataset.src) resetSeekUi();
+  else updateSeekUi();
   updateTtsPlayButton();
   if (keepBar && tts.open) setTtsStatus(status);
 }
@@ -502,34 +616,35 @@ function speakFrom(index) {
 }
 
 async function startAudioPlayback(chapter, { resumeRatio = null, resumeTime = null, fromStart = false } = {}) {
-  const audioUrl = chapterAudioUrl(chapter, tts.voiceId);
-  if (!audioUrl) {
+  if (!prepareChapterAudio(chapter)) {
     startSpeechPlayback();
     return;
   }
 
   tts.mode = "audio";
-  elements.audio.src = audioUrl;
   elements.audio.playbackRate = tts.rate;
+  if (!tts.syncUnits.length) buildAudioSyncMap();
 
   let targetTime = resumeTime;
   if (!fromStart && targetTime == null && resumeRatio == null) {
-    targetTime = loadPlaybackPosition(chapter, tts.voiceId);
+    // Prefer an in-memory scrub position if the user dragged before pressing play.
+    if (Number.isFinite(elements.audio.currentTime) && elements.audio.currentTime > 1) {
+      targetTime = elements.audio.currentTime;
+    } else {
+      targetTime = loadPlaybackPosition(chapter, tts.voiceId);
+    }
   }
 
-  const seekWhenReady = () => {
-    const duration = elements.audio.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    let time = targetTime;
-    if (resumeRatio != null) time = duration * resumeRatio;
-    if (!Number.isFinite(time) || time <= 0) return;
-    elements.audio.currentTime = Math.min(Math.max(0, time), Math.max(0, duration - 0.25));
-    updateSeekUi();
-    syncHighlightFromAudio();
-  };
-  elements.audio.addEventListener("loadedmetadata", seekWhenReady, { once: true });
-
   try {
+    const duration = await waitForAudioDuration();
+    if (fromStart) targetTime = 0;
+    else if (resumeRatio != null) targetTime = duration * resumeRatio;
+    if (fromStart || (Number.isFinite(targetTime) && targetTime > 0)) {
+      await seekAudioTo(Number.isFinite(targetTime) ? targetTime : 0);
+    } else {
+      updateSeekUi();
+      syncHighlightFromAudio({ force: true });
+    }
     await elements.audio.play();
   } catch (error) {
     stopTts({ status: "音频播放失败，请重试" });
@@ -538,11 +653,11 @@ async function startAudioPlayback(chapter, { resumeRatio = null, resumeTime = nu
   }
   tts.playing = true;
   tts.paused = false;
-  if (!tts.syncUnits.length) buildAudioSyncMap();
   updateTtsPlayButton();
   updateAudioStatus();
   renderVoiceButtons();
   if (targetTime > 0 || resumeRatio) setTtsStatus(`继续收听 · ${voiceLabel()}`);
+  else setTtsStatus(`听书中 · ${voiceLabel()}`);
 }
 
 async function selectVoice(voiceId) {
@@ -667,7 +782,91 @@ function syncFabState() {
   elements.ttsToggle.setAttribute("aria-pressed", tts.open ? "true" : "false");
   elements.ttsToggle.setAttribute("aria-label", tts.open ? "收起听书" : "打开听书");
   const label = elements.ttsToggle.querySelector(".tts-fab-label");
-  if (label) label.textContent = tts.playing && !tts.paused ? "播放中" : "听书";
+  if (label) label.textContent = "听";
+}
+
+function initFabDrag() {
+  const fab = elements.ttsToggle;
+  if (!fab || fab.dataset.dragBound) return;
+  fab.dataset.dragBound = "1";
+
+  const storageKey = "ushen-tts-fab-pos";
+  let dragging = false;
+  let moved = false;
+  let startX = 0;
+  let startY = 0;
+  let originLeft = 0;
+  let originTop = 0;
+  let suppressClick = false;
+
+  const applyPos = (left, top) => {
+    const maxLeft = Math.max(8, window.innerWidth - fab.offsetWidth - 8);
+    const maxTop = Math.max(8, window.innerHeight - fab.offsetHeight - 8);
+    const x = Math.min(maxLeft, Math.max(8, left));
+    const y = Math.min(maxTop, Math.max(8, top));
+    fab.style.left = `${x}px`;
+    fab.style.top = `${y}px`;
+    fab.style.right = "auto";
+    fab.style.bottom = "auto";
+    return { x, y };
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) applyPos(saved.x, saved.y);
+  } catch (_) {
+    /* ignore */
+  }
+
+  const onPointerDown = (event) => {
+    if (event.button != null && event.button !== 0) return;
+    dragging = true;
+    moved = false;
+    const rect = fab.getBoundingClientRect();
+    startX = event.clientX;
+    startY = event.clientY;
+    originLeft = rect.left;
+    originTop = rect.top;
+    fab.setPointerCapture?.(event.pointerId);
+  };
+
+  const onPointerMove = (event) => {
+    if (!dragging) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) < 6) return;
+    moved = true;
+    applyPos(originLeft + dx, originTop + dy);
+  };
+
+  const onPointerUp = (event) => {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) {
+      suppressClick = true;
+      const rect = fab.getBoundingClientRect();
+      const pos = applyPos(rect.left, rect.top);
+      localStorage.setItem(storageKey, JSON.stringify(pos));
+      window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+    }
+    try {
+      fab.releasePointerCapture?.(event.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  fab.addEventListener("pointerdown", onPointerDown);
+  fab.addEventListener("pointermove", onPointerMove);
+  fab.addEventListener("pointerup", onPointerUp);
+  fab.addEventListener("pointercancel", onPointerUp);
+  fab.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 }
 
 function setTtsBarOpen(open) {
@@ -676,11 +875,25 @@ function setTtsBarOpen(open) {
   document.body.classList.toggle("tts-open", open);
   syncFabState();
   if (!open) {
-    stopTts({ keepBar: false });
+    savePlaybackPosition();
+    elements.audio.pause();
+    tts.playing = false;
+    tts.paused = false;
+    tts.mode = "none";
+    clearTtsHighlight();
+    updateTtsPlayButton();
     syncFabState();
     return;
   }
+  prepareChapterAudio();
   renderVoiceButtons();
+  waitForAudioDuration().then(() => {
+    const saved = loadPlaybackPosition();
+    if (saved > 0) seekAudioTo(saved);
+    else updateSeekUi();
+  }).catch(() => {
+    resetSeekUi();
+  });
   if (!tts.playing) setTtsStatus(readyStatus());
 }
 
@@ -757,12 +970,12 @@ function initializeTts() {
     setTtsBarOpen(false);
   });
   elements.ttsPlay.addEventListener("click", toggleTtsPlayback);
-  elements.ttsRestart?.addEventListener("click", () => {
+  elements.ttsRestart?.addEventListener("click", async () => {
     const chapter = currentChapter();
     if (!chapter) return;
     clearPlaybackPosition(chapter);
     if (tts.mode === "audio" && tts.playing) {
-      elements.audio.currentTime = 0;
+      await seekAudioTo(0);
       if (tts.paused) resumeTts();
       updateAudioStatus();
       setTtsStatus(`从头收听 · ${voiceLabel()}`);
@@ -811,23 +1024,40 @@ function initializeTts() {
     return time;
   };
 
-  const commitSeek = () => {
-    const duration = elements.audio.duration;
-    tts.seeking = false;
-    if (!Number.isFinite(duration) || duration <= 0) {
-      setTtsStatus("音频加载中，稍后再拖进度");
-      return;
-    }
-    const time = previewSeek();
+  let seekCommitToken = 0;
+  const commitSeek = async () => {
+    const token = ++seekCommitToken;
+    tts.seeking = true;
     try {
-      elements.audio.currentTime = time;
-    } catch (error) {
-      console.warn(error);
+      if (!prepareChapterAudio()) {
+        setTtsStatus("本章音频尚未生成，无法拖动进度");
+        return;
+      }
+      let duration = elements.audio.duration;
+      if (!Number.isFinite(duration) || duration <= 0) {
+        try {
+          duration = await waitForAudioDuration();
+        } catch (error) {
+          setTtsStatus("音频加载中，稍后再拖进度");
+          return;
+        }
+      }
+      if (token !== seekCommitToken) return;
+      const time = (Number(elements.ttsSeek.value) / 1000) * duration;
+      const ok = await seekAudioTo(time);
+      if (token !== seekCommitToken) return;
+      if (!ok) {
+        setTtsStatus("定位失败，请重试");
+        updateSeekUi();
+        return;
+      }
+      savePlaybackPosition();
+      updateAudioStatus();
+      const landed = elements.audio.currentTime;
+      if (!(tts.playing && !tts.paused)) setTtsStatus(`已定位到 ${formatClock(landed)}`);
+    } finally {
+      if (token === seekCommitToken) tts.seeking = false;
     }
-    savePlaybackPosition();
-    syncHighlightFromAudio();
-    updateAudioStatus();
-    if (tts.playing && tts.paused) setTtsStatus(`已定位到 ${formatClock(time)}`);
   };
 
   elements.ttsSeek.addEventListener("pointerdown", () => {
@@ -838,21 +1068,32 @@ function initializeTts() {
   }, { passive: true });
   elements.ttsSeek.addEventListener("input", () => {
     tts.seeking = true;
+    if (!tts.syncTotal) buildAudioSyncMap();
     const time = previewSeek();
     const duration = elements.audio.duration;
-    if (Number.isFinite(duration) && duration > 0) {
-      // Live scrub so mobile users can drag to the exact spot.
-      try {
-        elements.audio.currentTime = time;
-      } catch (_) {
-        /* ignore transient seek errors while metadata settles */
-      }
-      syncHighlightFromAudio();
+    if (Number.isFinite(duration) && duration > 0 && tts.syncTotal) {
+      const position = (time / duration) * tts.syncTotal;
+      let index = tts.syncUnits.findIndex((unit) => position < unit.end);
+      if (index < 0) index = tts.syncUnits.length - 1;
+      highlightSyncIndex(index, { scroll: false });
     }
   });
-  elements.ttsSeek.addEventListener("pointerup", commitSeek);
-  elements.ttsSeek.addEventListener("touchend", commitSeek, { passive: true });
-  elements.ttsSeek.addEventListener("change", commitSeek);
+  // Prefer change (fires once) + pointerup for browsers that skip change on touch scrub.
+  elements.ttsSeek.addEventListener("change", () => {
+    commitSeek();
+  });
+  elements.ttsSeek.addEventListener("pointerup", () => {
+    window.setTimeout(() => {
+      if (tts.seeking) commitSeek();
+    }, 0);
+  });
+  elements.ttsSeek.addEventListener("touchend", () => {
+    window.setTimeout(() => {
+      if (tts.seeking) commitSeek();
+    }, 0);
+  }, { passive: true });
+
+  initFabDrag();
 
   if (tts.speechSupported) {
     refreshVoice();
@@ -879,10 +1120,10 @@ async function openChapter(index, options = {}) {
   if (!chapter) return;
 
   const keepPlaying = tts.resumeAfterChapter;
-  if (!keepPlaying) stopTts({ status: tts.open ? readyStatus(chapter) : "已停止" });
+  if (!keepPlaying) stopTts({ status: tts.open ? readyStatus(chapter) : "已停止", clearSrc: true });
   else {
     cancelSpeech();
-    if (tts.mode === "audio") stopAudio();
+    if (tts.mode === "audio") stopAudio({ clearSrc: true });
     clearTtsHighlight();
     tts.resumeAfterChapter = false;
   }
@@ -891,7 +1132,7 @@ async function openChapter(index, options = {}) {
     renderChapter(await loadChapterText(chapter), chapter);
   } catch (error) {
     elements.chapter.textContent = `本章加载失败，请刷新后重试。（${error.message}）`;
-    stopTts({ status: "本章加载失败" });
+    stopTts({ status: "本章加载失败", clearSrc: true });
     return;
   }
 
@@ -913,7 +1154,11 @@ async function openChapter(index, options = {}) {
 
   if (index + 1 < state.chapters.length) prefetchChapter(index + 1);
   renderVoiceButtons();
-  if (tts.open && !tts.playing) setTtsStatus(readyStatus(chapter));
+  if (tts.open) {
+    prepareChapterAudio(chapter);
+    waitForAudioDuration().then(updateSeekUi).catch(resetSeekUi);
+    if (!tts.playing) setTtsStatus(readyStatus(chapter));
+  }
 
   if (keepPlaying) startTts();
 }
