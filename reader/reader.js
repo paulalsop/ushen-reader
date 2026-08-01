@@ -29,6 +29,9 @@ const tts = {
   watchdogId: null,
   chromeKeepAliveId: null,
   seeking: false,
+  syncUnits: [],
+  syncTotal: 0,
+  syncIndex: -1,
 };
 
 const elements = {
@@ -139,12 +142,59 @@ function updateCatalog() {
     : `更新 ${generated.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function splitReadableUnits(text) {
+  const raw = text
+    .split(/(?<=[。！？!?…]+[”"」』』]*)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!raw.length) return text.trim() ? [text.trim()] : [];
+
+  const units = [];
+  raw.forEach((part) => {
+    if (units.length && part.length < 8) {
+      units[units.length - 1] += part;
+      return;
+    }
+    units.push(part);
+  });
+  return units;
+}
+
+function wrapSyncUnits(node) {
+  const text = node.textContent.replace(/\n+/g, "").trim();
+  if (!text) return;
+  const parts = splitReadableUnits(text);
+  node.replaceChildren();
+  parts.forEach((part) => {
+    const span = document.createElement("span");
+    span.className = "tts-unit";
+    span.textContent = part;
+    node.append(span);
+    // Keep a thin space between units for wrapping without changing spoken text much.
+    if (!/[。！？!?…’”"」』]$/.test(part)) node.append(document.createTextNode(""));
+  });
+}
+
+function buildAudioSyncMap() {
+  const units = [];
+  let cursor = 0;
+  elements.chapter.querySelectorAll(".tts-unit").forEach((span) => {
+    const weight = Math.max(1, span.textContent.replace(/\s+/g, "").length);
+    units.push({ el: span, start: cursor, end: cursor + weight, weight });
+    cursor += weight;
+  });
+  tts.syncUnits = units;
+  tts.syncTotal = cursor;
+  tts.syncIndex = -1;
+}
+
 function renderChapter(text, chapter) {
   const blocks = text.trim().split(/\n\s*\n/);
   const titleText = blocks.shift() || chapter.title;
   const title = document.createElement("h2");
   title.textContent = titleText;
   elements.chapter.replaceChildren(title);
+  wrapSyncUnits(title);
 
   if (chapter.status === "draft") {
     const status = document.createElement("span");
@@ -157,7 +207,10 @@ function renderChapter(text, chapter) {
     const paragraph = document.createElement("p");
     paragraph.textContent = block.replace(/\n+/g, "");
     elements.chapter.append(paragraph);
+    wrapSyncUnits(paragraph);
   });
+
+  buildAudioSyncMap();
 }
 
 function getSpeakNodes() {
@@ -171,9 +224,39 @@ function getSpeakNodes() {
 }
 
 function clearTtsHighlight() {
-  elements.chapter.querySelectorAll(".tts-active").forEach((node) => {
-    node.classList.remove("tts-active");
+  elements.chapter.querySelectorAll(".tts-active, .tts-active-block, .tts-read").forEach((node) => {
+    node.classList.remove("tts-active", "tts-active-block", "tts-read");
   });
+  tts.syncIndex = -1;
+}
+
+function highlightSyncIndex(index, { scroll = true } = {}) {
+  if (index < 0 || index >= tts.syncUnits.length) return;
+  if (index === tts.syncIndex) return;
+
+  tts.syncUnits.forEach((unit, unitIndex) => {
+    unit.el.classList.toggle("tts-active", unitIndex === index);
+    unit.el.classList.toggle("tts-read", unitIndex < index);
+    const block = unit.el.closest("p, h2");
+    if (block) block.classList.toggle("tts-active-block", unitIndex === index);
+  });
+
+  tts.syncIndex = index;
+  if (scroll) {
+    tts.syncUnits[index].el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function syncHighlightFromAudio() {
+  if (tts.mode !== "audio" || !tts.syncTotal) return;
+  const duration = elements.audio.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return;
+
+  const ratio = Math.min(1, Math.max(0, elements.audio.currentTime / duration));
+  const position = ratio * tts.syncTotal;
+  let index = tts.syncUnits.findIndex((unit) => position < unit.end);
+  if (index < 0) index = tts.syncUnits.length - 1;
+  highlightSyncIndex(index, { scroll: !tts.seeking });
 }
 
 function setTtsStatus(text) {
@@ -274,6 +357,7 @@ function formatClock(seconds) {
 
 function updateAudioStatus() {
   updateSeekUi();
+  syncHighlightFromAudio();
   if (tts.mode !== "audio" || !tts.playing) return;
   if (tts.paused) {
     setTtsStatus(`已暂停 · ${voiceLabel()}`);
@@ -341,7 +425,8 @@ function speakFrom(index) {
   }
 
   clearTtsHighlight();
-  node.classList.add("tts-active");
+  node.classList.add("tts-active-block");
+  node.querySelectorAll(".tts-unit").forEach((unit) => unit.classList.add("tts-active"));
   node.scrollIntoView({ behavior: "smooth", block: "center" });
   tts.mode = "speech";
   tts.paragraphIndex = index;
@@ -406,6 +491,7 @@ async function startAudioPlayback(chapter, { resumeRatio = 0 } = {}) {
   }
   tts.playing = true;
   tts.paused = false;
+  if (!tts.syncUnits.length) buildAudioSyncMap();
   updateTtsPlayButton();
   updateAudioStatus();
   renderVoiceButtons();

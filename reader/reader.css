@@ -237,11 +237,26 @@ button {
   text-align: justify;
 }
 
-.chapter .tts-active {
+.chapter .tts-unit {
   border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.chapter .tts-unit.tts-read {
+  color: color-mix(in srgb, var(--ink) 68%, var(--muted));
+}
+
+.chapter .tts-unit.tts-active {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 55%, transparent);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+.chapter .tts-active-block {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .tts-bar {
