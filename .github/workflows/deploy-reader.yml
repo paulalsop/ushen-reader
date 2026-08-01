@@ -5,6 +5,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    # Keep filling chapter audio in small batches after the first deploy.
+    - cron: "20 */2 * * *"
 
 permissions:
   contents: read
@@ -18,12 +21,35 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build reader
-        run: python3 build_reader.py
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install edge-tts
+        run: pip install edge-tts
+
+      - name: Cache TTS audio
+        uses: actions/cache@v4
+        with:
+          path: .tts-cache
+          key: tts-cache-${{ hashFiles('章节/*.txt') }}
+          restore-keys: |
+            tts-cache-
+
+      - name: Build reader with audio batch
+        env:
+          USHEN_TTS: "1"
+          USHEN_TTS_VOICE: zh-CN-XiaoxiaoNeural
+          # Only newly synthesize this many missing/changed chapters per run.
+          # Cached chapters are always copied into the deploy artifact.
+          USHEN_TTS_BATCH: "15"
+        run: python3 build_reader.py --with-audio
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

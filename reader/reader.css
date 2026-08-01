@@ -118,7 +118,8 @@ button {
   white-space: nowrap;
 }
 
-.draft-badge {
+.draft-badge,
+.audio-badge {
   margin-left: auto;
   padding: 2px 5px;
   border: 1px solid var(--accent);
@@ -126,6 +127,16 @@ button {
   color: var(--accent);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   font-size: 9px;
+}
+
+.audio-badge {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  color: color-mix(in srgb, var(--accent) 70%, var(--ink));
+}
+
+.chapter-link:has(.audio-badge) .draft-badge,
+.chapter-link:has(.draft-badge) .audio-badge {
+  margin-left: 0;
 }
 
 .reader {
@@ -234,16 +245,18 @@ button {
 }
 
 .tts-bar {
-  position: sticky;
+  position: fixed;
+  left: var(--sidebar-width);
+  right: 0;
   bottom: 0;
   z-index: 12;
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
   align-items: center;
-  width: min(760px, calc(100% - 48px));
+  width: min(760px, calc(100% - var(--sidebar-width) - 48px));
   margin: 0 auto;
-  padding: 12px 14px;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   border: 1px solid var(--line);
   border-bottom: 0;
   border-radius: 12px 12px 0 0;
@@ -252,21 +265,28 @@ button {
   color: var(--muted);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   font-size: 12px;
+  box-sizing: border-box;
 }
 
 .tts-bar[hidden] {
+  display: none !important;
+}
+
+.tts-bar audio {
   display: none;
 }
 
 .tts-play {
   min-width: 52px;
-  height: 32px;
-  padding: 0 12px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tts-play:hover {
@@ -279,19 +299,23 @@ button {
   display: inline-flex;
   gap: 6px;
   align-items: center;
+  min-height: 44px;
 }
 
 .tts-rate select {
-  height: 28px;
-  padding: 0 6px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ink);
   font: inherit;
 }
 
 .tts-auto input {
+  width: 18px;
+  height: 18px;
   accent-color: var(--accent);
 }
 
@@ -300,8 +324,9 @@ button {
   color: var(--muted);
 }
 
+body.tts-open .chapter,
 body.tts-open .chapter-nav {
-  padding-bottom: 24px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .chapter-status {
@@ -432,9 +457,10 @@ body.dark .chapter-link.active {
   }
 
   .tts-bar {
+    left: 0;
     width: calc(100% - 20px);
     gap: 8px 12px;
-    padding: 10px 12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
   }
 
   .tts-status {

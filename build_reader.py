@@ -3,16 +3,20 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
 NUMBER_RE = re.compile(r"第(\d+)章")
+sys.path.insert(0, str(ROOT / "05_production"))
+
+from synthesize_audio import synthesize_chapters  # noqa: E402
 
 
 def chapter_number(path: Path) -> int:
@@ -81,7 +85,7 @@ def collect_chapters() -> list[dict[str, object]]:
     return unique
 
 
-def build() -> None:
+def build(*, with_audio: bool | None = None) -> None:
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir()
@@ -89,17 +93,44 @@ def build() -> None:
     for asset in ("index.html", "reader.css", "reader.js"):
         shutil.copy2(ROOT / "reader" / asset, DIST / asset)
 
+    chapters = collect_chapters()
+    synthesize_chapters(chapters, DIST, enabled=with_audio)
+
     payload = {
         "book": "有神",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "chapters": collect_chapters(),
+        "chapters": chapters,
     }
     (DIST / "chapters.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     (DIST / ".nojekyll").touch()
-    print(f"Built reader with {len(payload['chapters'])} chapters in {DIST}")
+    audio_count = sum(1 for chapter in chapters if chapter.get("audioUrl"))
+    print(f"Built reader with {len(chapters)} chapters ({audio_count} with audio) in {DIST}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the static novel reader")
+    parser.add_argument(
+        "--with-audio",
+        action="store_true",
+        help="Synthesize chapter audio with edge-tts (also enabled in GitHub Actions)",
+    )
+    parser.add_argument(
+        "--skip-audio",
+        action="store_true",
+        help="Skip audio synthesis even in CI",
+    )
+    args = parser.parse_args()
+    enabled: bool | None
+    if args.skip_audio:
+        enabled = False
+    elif args.with_audio:
+        enabled = True
+    else:
+        enabled = None
+    build(with_audio=enabled)
 
 
 if __name__ == "__main__":
-    build()
+    main()
