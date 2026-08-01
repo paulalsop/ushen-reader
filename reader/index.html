@@ -31,6 +31,7 @@
           <button class="icon-button" id="openSidebar" aria-label="打开目录">☰</button>
           <div class="toolbar-title" id="toolbarTitle">有神</div>
           <div class="toolbar-actions">
+            <button class="text-button" id="ttsToggle" aria-label="听书" aria-pressed="false">听</button>
             <button class="text-button" id="fontDown" aria-label="缩小字号">字−</button>
             <button class="text-button" id="fontUp" aria-label="增大字号">字＋</button>
             <button class="icon-button" id="themeToggle" aria-label="切换夜间模式">◐</button>
@@ -54,6 +55,24 @@
           <button id="previousChapter">← 上一章</button>
           <button id="nextChapter">下一章 →</button>
         </footer>
+
+        <div class="tts-bar" id="ttsBar" hidden>
+          <button class="tts-play" id="ttsPlay" aria-label="播放">播放</button>
+          <label class="tts-rate">
+            语速
+            <select id="ttsRate" aria-label="朗读语速">
+              <option value="0.8">0.8×</option>
+              <option value="1" selected>1.0×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+            </select>
+          </label>
+          <label class="tts-auto">
+            <input type="checkbox" id="ttsAutoNext" checked />
+            连播
+          </label>
+          <span class="tts-status" id="ttsStatus">准备听书</span>
+        </div>
       </main>
     </div>
     <div class="scrim" id="scrim"></div>

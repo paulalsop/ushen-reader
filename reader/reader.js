@@ -4,6 +4,18 @@ const state = {
   generatedAt: null,
 };
 
+const tts = {
+  supported: typeof window !== "undefined" && "speechSynthesis" in window,
+  open: false,
+  playing: false,
+  paused: false,
+  rate: Number(localStorage.getItem("ushen-tts-rate") || 1),
+  autoNext: localStorage.getItem("ushen-tts-auto-next") !== "0",
+  paragraphIndex: -1,
+  resumeAfterChapter: false,
+  voice: null,
+};
+
 const elements = {
   chapter: document.querySelector("#chapter"),
   chapterList: document.querySelector("#chapterList"),
@@ -13,6 +25,12 @@ const elements = {
   previous: document.querySelector("#previousChapter"),
   next: document.querySelector("#nextChapter"),
   progressBar: document.querySelector("#progressBar"),
+  ttsToggle: document.querySelector("#ttsToggle"),
+  ttsBar: document.querySelector("#ttsBar"),
+  ttsPlay: document.querySelector("#ttsPlay"),
+  ttsRate: document.querySelector("#ttsRate"),
+  ttsAutoNext: document.querySelector("#ttsAutoNext"),
+  ttsStatus: document.querySelector("#ttsStatus"),
 };
 
 function chapterLabel(chapter) {
@@ -75,9 +93,238 @@ function renderChapter(text, chapter) {
   });
 }
 
+function getSpeakNodes() {
+  const nodes = [];
+  const title = elements.chapter.querySelector("h2");
+  if (title?.textContent?.trim()) nodes.push(title);
+  elements.chapter.querySelectorAll("p").forEach((paragraph) => {
+    if (paragraph.textContent?.trim()) nodes.push(paragraph);
+  });
+  return nodes;
+}
+
+function clearTtsHighlight() {
+  elements.chapter.querySelectorAll(".tts-active").forEach((node) => {
+    node.classList.remove("tts-active");
+  });
+}
+
+function setTtsStatus(text) {
+  elements.ttsStatus.textContent = text;
+}
+
+function updateTtsPlayButton() {
+  if (!tts.playing) {
+    elements.ttsPlay.textContent = "播放";
+    elements.ttsPlay.setAttribute("aria-label", "播放");
+  } else if (tts.paused) {
+    elements.ttsPlay.textContent = "继续";
+    elements.ttsPlay.setAttribute("aria-label", "继续");
+  } else {
+    elements.ttsPlay.textContent = "暂停";
+    elements.ttsPlay.setAttribute("aria-label", "暂停");
+  }
+}
+
+function pickChineseVoice() {
+  if (!tts.supported) return null;
+  const voices = speechSynthesis.getVoices();
+  return (
+    voices.find((voice) => /^zh(-|$)/i.test(voice.lang) && /CN|TW|HK|Hans|Hant/i.test(voice.lang)) ||
+    voices.find((voice) => /^zh/i.test(voice.lang)) ||
+    voices.find((voice) => /chinese|中文|普通话|国语/i.test(voice.name)) ||
+    null
+  );
+}
+
+function refreshVoice() {
+  tts.voice = pickChineseVoice();
+}
+
+function cancelSpeech() {
+  if (!tts.supported) return;
+  speechSynthesis.cancel();
+}
+
+function stopTts({ keepBar = true, status = "已停止" } = {}) {
+  tts.playing = false;
+  tts.paused = false;
+  tts.paragraphIndex = -1;
+  tts.resumeAfterChapter = false;
+  cancelSpeech();
+  clearTtsHighlight();
+  updateTtsPlayButton();
+  if (keepBar && tts.open) setTtsStatus(status);
+}
+
+function speakFrom(index) {
+  const nodes = getSpeakNodes();
+  if (!nodes.length) {
+    stopTts({ status: "本章没有可朗读内容" });
+    return;
+  }
+
+  if (index >= nodes.length) {
+    clearTtsHighlight();
+    tts.playing = false;
+    tts.paused = false;
+    tts.paragraphIndex = -1;
+    updateTtsPlayButton();
+
+    if (tts.autoNext && state.currentIndex < state.chapters.length - 1) {
+      setTtsStatus("进入下一章…");
+      tts.resumeAfterChapter = true;
+      openChapter(state.currentIndex + 1);
+      return;
+    }
+
+    setTtsStatus("本章已结束");
+    return;
+  }
+
+  const node = nodes[index];
+  const text = node.textContent.trim();
+  if (!text) {
+    speakFrom(index + 1);
+    return;
+  }
+
+  clearTtsHighlight();
+  node.classList.add("tts-active");
+  node.scrollIntoView({ behavior: "smooth", block: "center" });
+  tts.paragraphIndex = index;
+  tts.playing = true;
+  tts.paused = false;
+  updateTtsPlayButton();
+  setTtsStatus(`正在听第 ${index + 1} / ${nodes.length} 段`);
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = tts.voice?.lang || "zh-CN";
+  utterance.rate = tts.rate;
+  if (tts.voice) utterance.voice = tts.voice;
+
+  utterance.onend = () => {
+    if (!tts.playing || tts.paused) return;
+    speakFrom(index + 1);
+  };
+  utterance.onerror = (event) => {
+    if (event.error === "interrupted" || event.error === "canceled") return;
+    stopTts({ status: "朗读中断，请重试" });
+  };
+
+  speechSynthesis.speak(utterance);
+}
+
+function startTts() {
+  if (!tts.supported) {
+    setTtsStatus("当前浏览器不支持朗读");
+    return;
+  }
+  if (!getSpeakNodes().length) {
+    setTtsStatus("本章没有可朗读内容");
+    return;
+  }
+
+  refreshVoice();
+  if (!tts.voice) setTtsStatus("未找到中文语音，将使用系统默认音");
+  cancelSpeech();
+  speakFrom(0);
+}
+
+function pauseTts() {
+  if (!tts.supported || !tts.playing || tts.paused) return;
+  speechSynthesis.pause();
+  tts.paused = true;
+  updateTtsPlayButton();
+  setTtsStatus("已暂停");
+}
+
+function resumeTts() {
+  if (!tts.supported || !tts.playing || !tts.paused) return;
+  speechSynthesis.resume();
+  tts.paused = false;
+  updateTtsPlayButton();
+  const nodes = getSpeakNodes();
+  setTtsStatus(`正在听第 ${tts.paragraphIndex + 1} / ${nodes.length} 段`);
+}
+
+function toggleTtsPlayback() {
+  if (!tts.playing) {
+    startTts();
+    return;
+  }
+  if (tts.paused) resumeTts();
+  else pauseTts();
+}
+
+function setTtsBarOpen(open) {
+  tts.open = open;
+  elements.ttsBar.hidden = !open;
+  elements.ttsToggle.setAttribute("aria-pressed", open ? "true" : "false");
+  document.body.classList.toggle("tts-open", open);
+  if (!open) stopTts({ keepBar: false });
+  else if (!tts.playing) setTtsStatus("准备听书");
+}
+
+function initializeTts() {
+  const allowedRates = [0.8, 1, 1.25, 1.5];
+  if (!allowedRates.includes(tts.rate)) tts.rate = 1;
+  elements.ttsRate.value = String(tts.rate);
+  elements.ttsAutoNext.checked = tts.autoNext;
+
+  if (!tts.supported) {
+    elements.ttsToggle.disabled = true;
+    elements.ttsToggle.title = "当前浏览器不支持朗读";
+    elements.ttsPlay.disabled = true;
+    setTtsStatus("当前浏览器不支持朗读");
+    return;
+  }
+
+  refreshVoice();
+  if (typeof speechSynthesis !== "undefined") {
+    speechSynthesis.addEventListener("voiceschanged", refreshVoice);
+  }
+
+  elements.ttsToggle.addEventListener("click", () => {
+    setTtsBarOpen(!tts.open);
+  });
+  elements.ttsPlay.addEventListener("click", toggleTtsPlayback);
+  elements.ttsRate.addEventListener("change", () => {
+    tts.rate = Number(elements.ttsRate.value) || 1;
+    localStorage.setItem("ushen-tts-rate", String(tts.rate));
+    if (tts.playing && !tts.paused) {
+      const index = Math.max(0, tts.paragraphIndex);
+      cancelSpeech();
+      speakFrom(index);
+    }
+  });
+  elements.ttsAutoNext.addEventListener("change", () => {
+    tts.autoNext = elements.ttsAutoNext.checked;
+    localStorage.setItem("ushen-tts-auto-next", tts.autoNext ? "1" : "0");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && tts.playing && !tts.paused) pauseTts();
+  });
+
+  // Chrome 偶发卡死：speaking 却被标记为 paused 时强制 resume
+  setInterval(() => {
+    if (!tts.supported || !tts.playing || tts.paused) return;
+    if (speechSynthesis.speaking && speechSynthesis.paused) speechSynthesis.resume();
+  }, 4000);
+}
+
 async function openChapter(index, options = {}) {
   const chapter = state.chapters[index];
   if (!chapter) return;
+
+  const keepPlaying = tts.resumeAfterChapter;
+  if (!keepPlaying) stopTts({ status: tts.open ? "准备听书" : "已停止" });
+  else {
+    cancelSpeech();
+    clearTtsHighlight();
+    tts.resumeAfterChapter = false;
+  }
 
   try {
     const response = await fetch(chapter.url, { cache: "no-store" });
@@ -85,6 +332,7 @@ async function openChapter(index, options = {}) {
     renderChapter(await response.text(), chapter);
   } catch (error) {
     elements.chapter.textContent = `本章加载失败，请刷新后重试。（${error.message}）`;
+    stopTts({ status: "本章加载失败" });
     return;
   }
 
@@ -103,6 +351,8 @@ async function openChapter(index, options = {}) {
   document.body.classList.remove("sidebar-open");
   if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "instant" });
   updateProgress();
+
+  if (keepPlaying) startTts();
 }
 
 function requestedChapter() {
@@ -184,5 +434,6 @@ window.addEventListener("hashchange", () => {
 });
 
 initializePreferences();
+initializeTts();
 loadCatalog({ initial: true });
 setInterval(() => loadCatalog(), 60_000);

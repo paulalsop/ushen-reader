@@ -138,13 +138,17 @@ button {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 100px 1fr 100px;
+  grid-template-columns: 120px 1fr 148px;
   align-items: center;
   height: 58px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--paper) 92%, transparent);
   backdrop-filter: blur(14px);
+}
+
+#ttsToggle[aria-pressed="true"] {
+  color: var(--accent);
 }
 
 .toolbar-title {
@@ -220,6 +224,84 @@ button {
 .chapter p {
   margin: 0 0 1.25em;
   text-align: justify;
+}
+
+.chapter .tts-active {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.tts-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(14px);
+  color: var(--muted);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 12px;
+}
+
+.tts-bar[hidden] {
+  display: none;
+}
+
+.tts-play {
+  min-width: 52px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tts-play:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tts-rate,
+.tts-auto {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tts-rate select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.tts-auto input {
+  accent-color: var(--accent);
+}
+
+.tts-status {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+body.tts-open .chapter-nav {
+  padding-bottom: 24px;
 }
 
 .chapter-status {
@@ -318,7 +400,7 @@ body.dark .chapter-link.active {
   }
 
   .toolbar {
-    grid-template-columns: 52px 1fr 126px;
+    grid-template-columns: 52px 1fr 168px;
     padding: 0 10px;
   }
 
@@ -347,5 +429,16 @@ body.dark .chapter-link.active {
 
   .chapter-nav {
     width: calc(100% - 36px);
+  }
+
+  .tts-bar {
+    width: calc(100% - 20px);
+    gap: 8px 12px;
+    padding: 10px 12px;
+  }
+
+  .tts-status {
+    flex: 1 1 100%;
+    margin-left: 0;
   }
 }
