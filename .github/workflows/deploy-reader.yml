@@ -36,11 +36,14 @@ jobs:
       - name: Install edge-tts
         run: pip install edge-tts
 
-      - name: Cache TTS audio
-        uses: actions/cache@v5
+      # GitHub cache keys are immutable: a primary-key hit never saves again.
+      # Restore the newest previous cache, then always save under a unique key
+      # so each scheduled batch can grow the TTS library.
+      - name: Restore TTS audio cache
+        uses: actions/cache/restore@v5
         with:
           path: .tts-cache
-          key: tts-cache-${{ hashFiles('章节/*.txt') }}
+          key: tts-cache-${{ github.run_id }}
           restore-keys: |
             tts-cache-
 
@@ -53,6 +56,13 @@ jobs:
           # Cached chapter/voice files are always copied into the deploy artifact.
           USHEN_TTS_BATCH: "10"
         run: python3 build_reader.py --with-audio
+
+      - name: Save TTS audio cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .tts-cache
+          key: tts-cache-${{ github.run_id }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

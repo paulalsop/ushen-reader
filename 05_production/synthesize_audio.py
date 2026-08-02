@@ -250,8 +250,13 @@ async def attach_audio(
             chapter["audioUrl"] = audio_map.get("xiaoxiao") or next(iter(audio_map.values()))
 
     ready = sum(1 for chapter in published if chapter_audio_map(chapter))
+    per_voice = []
+    for voice in voices:
+        count = sum(1 for chapter in published if voice["id"] in chapter_audio_map(chapter))
+        per_voice.append(f"{voice['label']} {count}")
     print(
         f"Audio summary: {ready}/{len(published)} chapters have audio "
+        f"[{', '.join(per_voice)}] "
         f"({cached_files} from cache, {synthesized_files} newly synthesized, {deferred} chapters still pending)"
     )
     return voices
