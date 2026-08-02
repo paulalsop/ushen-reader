@@ -1,6 +1,9 @@
 dist/
 .tts-cache/
 reader/voice-samples/
+reader/drama-samples/
+章节/audio-scripts/
+05_production/synthesize_drama_sample.py
 .DS_Store
 __pycache__/
 *.pyc
